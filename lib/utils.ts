@@ -75,3 +75,15 @@ export function formatDateTime(date: Date | string | number): string {
 export function formatTime(date: Date | string | number): string {
   return formatInTimeZone(date, "HH:mm", { locale: ptBR })
 }
+
+/**
+ * Formatar data simples
+ */
+export function formatDate(date: Date | string | number): string {
+  try {
+    const dateObj = typeof date === "string" || typeof date === "number" ? new Date(date) : date
+    return dateObj.toLocaleDateString("pt-BR")
+  } catch (error) {
+    return new Date().toLocaleDateString("pt-BR")
+  }
+}
