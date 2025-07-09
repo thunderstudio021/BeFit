@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import CreatePost from "@/components/create-post"
 
-export default function CreatePostModal() {
+export default function CreatePostModal({profile}:any) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
@@ -18,7 +18,7 @@ export default function CreatePostModal() {
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[600px] p-0 bg-background">
-          <CreatePost onClose={() => setIsOpen(false)} />
+          <CreatePost profile={profile} location="foryou" onClose={() => setIsOpen(false)} />
         </DialogContent>
       </Dialog>
     </>

@@ -1,16 +1,28 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Home, Calendar, Crown, Coins, Film, ChevronLeft, ChevronRight } from "lucide-react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
+import { useUser } from "@supabase/auth-helpers-react"
+import { getUserProfile } from "@/lib/services/profileService"
 
 export default function DesktopSidebar() {
   const pathname = usePathname()
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const user = useUser()
+  const [profile, setProfile] = useState<any>(null)
+
+  useEffect(() => {
+    if (!user) return
+
+    getUserProfile(user.id)
+      .then((data) => {setProfile(data);})
+      .catch((err) => console.error(err))
+  }, [user])
 
   const navItems = [
     { icon: Home, path: "/", label: "Home" },
@@ -83,7 +95,7 @@ export default function DesktopSidebar() {
             <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-all cursor-pointer mb-3">
               <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-purple-500">
                 <Image
-                  src="/placeholder.svg?height=32&width=32"
+                  src={profile?.avatar_url || "/placeholder.svg?height=32&width=32"}
                   alt="Avatar"
                   width={32}
                   height={32}
@@ -91,8 +103,8 @@ export default function DesktopSidebar() {
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">João Silva</p>
-                <p className="text-xs text-muted-foreground truncate">@joao.fitness</p>
+                <p className="text-sm font-medium truncate">{profile?.full_name}</p>
+                <p className="text-xs text-muted-foreground truncate">@{profile?.username}</p>
               </div>
             </div>
           )}

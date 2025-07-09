@@ -1,8 +1,8 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,30 +10,61 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function AuthPage() {
-  const [loginData, setLoginData] = useState({
-    email: "",
-    password: "",
-  })
+  const router = useRouter()
 
+  const [loginData, setLoginData] = useState({ email: "", password: "" })
   const [registerData, setRegisterData] = useState({
     firstName: "",
     lastName: "",
     username: "",
     email: "",
     whatsapp: "",
-    password: "",
+    password: ""
   })
 
-  const handleLogin = (e: React.FormEvent) => {
+  const [error, setError] = useState("")
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("Login:", loginData)
-    // Aqui será implementada a lógica de login
+    setError("")
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: loginData.email,
+      password: loginData.password
+    })
+    if (error) return setError(error.message)
+    await supabase.auth.setSession({
+      access_token: data.session?.access_token!,
+      refresh_token: data.session?.refresh_token!
+    })
+
+    window.location.href = "/" // redireciona após login
   }
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("Register:", registerData)
-    // Aqui será implementada a lógica de cadastro
+    setError("")
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: registerData.email,
+      password: registerData.password
+    })
+    if (signUpError) return setError(signUpError.message)
+
+    const { error: updateError } = await supabase
+    .from("profiles")
+    .update({
+      user_type: "free", // ou o que desejar
+      full_name: `${registerData.firstName} ${registerData.lastName}`,
+      username: registerData.username,
+      whatsapp: registerData.whatsapp
+    })
+    .eq("id", data.user?.id)
+
+    if (updateError) {
+      console.error("Erro ao inserir perfil:", updateError)
+      return setError("Erro ao salvar perfil.")
+    }
+
+    window.location.href = "/"
   }
 
   return (
@@ -46,16 +77,10 @@ export default function AuthPage() {
 
         <Tabs defaultValue="login" className="w-full">
           <TabsList className="grid w-full grid-cols-2 bg-gray-800 border-gray-700">
-            <TabsTrigger
-              value="login"
-              className="data-[state=active]:bg-purple-600 data-[state=active]:text-white text-gray-300"
-            >
+            <TabsTrigger value="login" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white text-gray-300">
               Login
             </TabsTrigger>
-            <TabsTrigger
-              value="register"
-              className="data-[state=active]:bg-purple-600 data-[state=active]:text-white text-gray-300"
-            >
+            <TabsTrigger value="register" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white text-gray-300">
               Cadastro
             </TabsTrigger>
           </TabsList>
@@ -64,46 +89,20 @@ export default function AuthPage() {
             <Card className="bg-gray-800 border-gray-700">
               <CardHeader>
                 <CardTitle className="text-white">Entrar</CardTitle>
-                <CardDescription className="text-gray-400">
-                  Entre com suas credenciais para acessar sua conta
-                </CardDescription>
+                <CardDescription className="text-gray-400">Entre com suas credenciais para acessar sua conta</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-gray-300">
-                      Email
-                    </Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={loginData.email}
-                      onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-                      className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500"
-                      required
-                    />
+                    <Label htmlFor="email" className="text-gray-300">Email</Label>
+                    <Input id="email" type="email" required value={loginData.email} onChange={(e) => setLoginData({ ...loginData, email: e.target.value })} className="bg-gray-700 text-white" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password" className="text-gray-300">
-                      Senha
-                    </Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={loginData.password}
-                      onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                      className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500"
-                      required
-                    />
+                    <Label htmlFor="password" className="text-gray-300">Senha</Label>
+                    <Input id="password" type="password" required value={loginData.password} onChange={(e) => setLoginData({ ...loginData, password: e.target.value })} className="bg-gray-700 text-white" />
                   </div>
-                  <Button
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium"
-                  >
-                    Entrar
-                  </Button>
+                  {error && <p className="text-red-400 text-sm">{error}</p>}
+                  <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white">Entrar</Button>
                 </form>
               </CardContent>
             </Card>
@@ -119,118 +118,40 @@ export default function AuthPage() {
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="firstName" className="text-gray-300">
-                        Nome
-                      </Label>
-                      <Input
-                        id="firstName"
-                        type="text"
-                        placeholder="João"
-                        value={registerData.firstName}
-                        onChange={(e) => setRegisterData({ ...registerData, firstName: e.target.value })}
-                        className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500"
-                        required
-                      />
+                      <Label htmlFor="firstName" className="text-gray-300">Nome</Label>
+                      <Input id="firstName" required value={registerData.firstName} onChange={(e) => setRegisterData({ ...registerData, firstName: e.target.value })} className="bg-gray-700 text-white" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="lastName" className="text-gray-300">
-                        Sobrenome
-                      </Label>
-                      <Input
-                        id="lastName"
-                        type="text"
-                        placeholder="Silva"
-                        value={registerData.lastName}
-                        onChange={(e) => setRegisterData({ ...registerData, lastName: e.target.value })}
-                        className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500"
-                        required
-                      />
+                      <Label htmlFor="lastName" className="text-gray-300">Sobrenome</Label>
+                      <Input id="lastName" required value={registerData.lastName} onChange={(e) => setRegisterData({ ...registerData, lastName: e.target.value })} className="bg-gray-700 text-white" />
                     </div>
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="username" className="text-gray-300">
-                      Usuário
-                    </Label>
-                    <Input
-                      id="username"
-                      type="text"
-                      placeholder="@seuusuario"
-                      value={registerData.username}
-                      onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })}
-                      className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500"
-                      required
-                    />
+                    <Label htmlFor="username" className="text-gray-300">Usuário</Label>
+                    <Input id="username" required value={registerData.username} onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })} className="bg-gray-700 text-white" />
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="registerEmail" className="text-gray-300">
-                      Email
-                    </Label>
-                    <Input
-                      id="registerEmail"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={registerData.email}
-                      onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
-                      className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500"
-                      required
-                    />
+                    <Label htmlFor="email" className="text-gray-300">Email</Label>
+                    <Input id="email" type="email" required value={registerData.email} onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })} className="bg-gray-700 text-white" />
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="whatsapp" className="text-gray-300">
-                      WhatsApp <span className="text-red-400">*</span>
-                    </Label>
-                    <Input
-                      id="whatsapp"
-                      type="tel"
-                      placeholder="(11) 99999-9999"
-                      value={registerData.whatsapp}
-                      onChange={(e) => setRegisterData({ ...registerData, whatsapp: e.target.value })}
-                      className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500"
-                      required
-                    />
+                    <Label htmlFor="whatsapp" className="text-gray-300">WhatsApp</Label>
+                    <Input id="whatsapp" required value={registerData.whatsapp} onChange={(e) => setRegisterData({ ...registerData, whatsapp: e.target.value })} className="bg-gray-700 text-white" />
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="registerPassword" className="text-gray-300">
-                      Senha
-                    </Label>
-                    <Input
-                      id="registerPassword"
-                      type="password"
-                      placeholder="••••••••"
-                      value={registerData.password}
-                      onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
-                      className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500"
-                      required
-                    />
+                    <Label htmlFor="password" className="text-gray-300">Senha</Label>
+                    <Input id="password" type="password" required value={registerData.password} onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })} className="bg-gray-700 text-white" />
                   </div>
-
-                  <Button
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium"
-                  >
-                    Criar Conta
-                  </Button>
+                  {error && <p className="text-red-400 text-sm">{error}</p>}
+                  <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white">Criar Conta</Button>
                 </form>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
 
-        <div className="text-center mt-6">
-          <p className="text-gray-400 text-sm">
-            Ao continuar, você concorda com nossos{" "}
-            <a href="#" className="text-purple-400 hover:text-purple-300">
-              Termos de Uso
-            </a>{" "}
-            e{" "}
-            <a href="#" className="text-purple-400 hover:text-purple-300">
-              Política de Privacidade
-            </a>
-          </p>
+        <div className="text-center mt-6 text-gray-400 text-sm">
+          Ao continuar, você concorda com nossos <a href="#" className="text-purple-400 hover:text-purple-300">Termos de Uso</a> e <a href="#" className="text-purple-400 hover:text-purple-300">Política de Privacidade</a>
         </div>
       </div>
     </div>

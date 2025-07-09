@@ -10,313 +10,92 @@ import Image from "next/image"
 import AppLayout from "@/components/app-layout"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/contexts/theme-context"
+import { supabase } from "@/lib/supabase"
 
-// Simulando dados do banner que viriam do admin
-const bannerData = {
-  image: "/placeholder.svg?height=720&width=1280",
-  title: "Transforme seu Corpo e Mente",
-  subtitle: "Acesso exclusivo a todos os treinos, receitas e conteúdos premium para sua jornada fitness!",
-  buttonText: "Começar Agora",
-  buttonLink: "/premium/modulo/0/1",
-  isActive: true,
+
+
+
+function formatDuration(seconds:any) {
+  if (!seconds) return "00:00";
+  const m = String(Math.floor(seconds / 60)).padStart(2, "0");
+  const s = String(seconds % 60).padStart(2, "0");
+  return `${m}:${s}`;
 }
-
+function formatModulesData(rawModules:any) {
+  return rawModules.map((module:any, index:any) => ({
+    id: module.id,
+    title: module.name,
+    progress: 0, // aqui você pode calcular depois
+    items: module.premium_videos.map((video:any, vIndex:any) => ({
+      id: vIndex + 1,
+      title: video.title,
+      thumbnail: video.thumbnail_url || "/placeholder.svg",
+      duration: formatDuration(video.duration), // você pode converter de segundos p/ "MM:SS"
+      completed: false, // aqui você pode usar uma tabela tipo user_videos_completed
+      type: "video", // ou baseado em alguma lógica futura
+    })),
+  }));
+}
 // Simulando dados dos módulos que viriam do admin
-const modulesData = [
-  {
-    id: 0,
-    title: "Boas-vindas e Como Usar a Plataforma",
-    progress: 75,
-    items: [
-      {
-        id: 1,
-        title: "Bem-vindo à BBfitness",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "05:22",
-        completed: true,
-        type: "video",
-      },
-      {
-        id: 2,
-        title: "Navegando pela plataforma",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "08:45",
-        completed: true,
-        type: "video",
-      },
-      {
-        id: 3,
-        title: "Configurando seu perfil",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "06:30",
-        completed: false,
-        type: "video",
-      },
-      {
-        id: 4,
-        title: "Recursos premium",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "07:15",
-        completed: true,
-        type: "video",
-      },
-    ],
-  },
-  {
-    id: 1,
-    title: "Reprogramação Mental e Motivação",
-    progress: 40,
-    items: [
-      {
-        id: 1,
-        title: "Mindset de sucesso",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "12:45",
-        completed: true,
-        type: "video",
-      },
-      {
-        id: 2,
-        title: "Superando bloqueios",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "15:30",
-        completed: false,
-        type: "video",
-      },
-      {
-        id: 3,
-        title: "Criando hábitos",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "18:20",
-        completed: true,
-        type: "video",
-      },
-      {
-        id: 4,
-        title: "Motivação diária",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "10:15",
-        completed: false,
-        type: "video",
-      },
-      {
-        id: 5,
-        title: "Visualização e metas",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "14:50",
-        completed: false,
-        type: "video",
-      },
-    ],
-  },
-  {
-    id: 2,
-    title: "Nutrição Descomplicada",
-    progress: 60,
-    items: [
-      {
-        id: 1,
-        title: "Macronutrientes",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "16:30",
-        completed: true,
-        type: "video",
-      },
-      {
-        id: 2,
-        title: "Calculando calorias",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "12:45",
-        completed: true,
-        type: "video",
-      },
-      {
-        id: 3,
-        title: "Montando pratos",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "14:20",
-        completed: true,
-        type: "video",
-      },
-      {
-        id: 4,
-        title: "Hidratação",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "08:15",
-        completed: false,
-        type: "video",
-      },
-      {
-        id: 5,
-        title: "Suplementação",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "15:40",
-        completed: false,
-        type: "video",
-      },
-    ],
-  },
-  {
-    id: 3,
-    title: "Receitas Fitness e Saborosas ✅ [Atualizado sempre]",
-    progress: 25,
-    items: [
-      {
-        id: 1,
-        title: "Café da manhã proteico",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "10:15",
-        completed: true,
-        type: "recipe",
-      },
-      {
-        id: 2,
-        title: "Almoço low carb",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "12:30",
-        completed: false,
-        type: "recipe",
-      },
-      {
-        id: 3,
-        title: "Lanches saudáveis",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "08:45",
-        completed: false,
-        type: "recipe",
-      },
-      {
-        id: 4,
-        title: "Jantar proteico",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "14:20",
-        completed: false,
-        type: "recipe",
-      },
-      {
-        id: 5,
-        title: "Sobremesas fit",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "11:35",
-        completed: true,
-        type: "recipe",
-      },
-      {
-        id: 6,
-        title: "Bebidas saudáveis",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "09:25",
-        completed: false,
-        type: "recipe",
-      },
-    ],
-  },
-  {
-    id: 4,
-    title: "Treinos para Emagrecer e Tonificar",
-    progress: 10,
-    items: [
-      {
-        id: 1,
-        title: "HIIT 15 minutos",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "15:00",
-        completed: true,
-        type: "workout",
-      },
-      {
-        id: 2,
-        title: "Treino ABC completo",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "45:30",
-        completed: false,
-        type: "workout",
-      },
-      {
-        id: 3,
-        title: "Cardio intenso",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "25:15",
-        completed: false,
-        type: "workout",
-      },
-      {
-        id: 4,
-        title: "Treino de força",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "35:40",
-        completed: false,
-        type: "workout",
-      },
-    ],
-  },
-  {
-    id: 5,
-    title: "Organização e Planejamento",
-    progress: 0,
-    items: [
-      {
-        id: 1,
-        title: "Planejamento semanal",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "12:30",
-        completed: false,
-        type: "planner",
-      },
-      {
-        id: 2,
-        title: "Organizando refeições",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "18:45",
-        completed: false,
-        type: "planner",
-      },
-      {
-        id: 3,
-        title: "Rotina fitness",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "14:20",
-        completed: false,
-        type: "planner",
-      },
-    ],
-  },
-  {
-    id: 6,
-    title: "Comunidade, Acompanhamento e Evolução",
-    progress: 0,
-    items: [
-      {
-        id: 1,
-        title: "Participando da comunidade",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "08:15",
-        completed: false,
-        type: "community",
-      },
-      {
-        id: 2,
-        title: "Acompanhamento de progresso",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "12:40",
-        completed: false,
-        type: "community",
-      },
-      {
-        id: 3,
-        title: "Compartilhando resultados",
-        thumbnail: "/placeholder.svg?height=400&width=250",
-        duration: "10:30",
-        completed: false,
-        type: "community",
-      },
-    ],
-  },
-]
+
 
 export default function PremiumPage() {
+  const [bannerData, setBannerData] = useState({
+    image: "/placeholder.svg?height=720&width=1280",
+    title: "",
+    subtitle: "",
+    buttonText: "",
+    buttonLink: "",
+    isActive: false,
+  })
   const { isDark } = useTheme()
+  const [modulesData, setModulesData] = useState([])
+  useEffect(() => {
+  const fetchPremiumBanner = async () => {
+    const { data, error } = await supabase
+      .from("banners")
+      .select("*")
+      .eq("slug", "premium")
+      .single()
 
+    if (error) {
+      console.error("Erro ao carregar banner premium:", error)
+      return
+    }
+
+    setBannerData({
+      image: data?.image_url || "/placeholder.svg?height=720&width=1280",
+      title: data?.title || "",
+      subtitle: data?.description || "",  // description vira subtitle
+      buttonText: data?.btn_text || "",
+      buttonLink: data?.link || "",
+      isActive: true,  // Você pode armazenar um campo is_active se quiser
+    })
+  }
+
+  fetchPremiumBanner()
+}, [])
+
+  useEffect(() => {
+    const getData = async () => {
+      const { data, error } = await supabase
+      .from("premium_modules")
+      .select(`
+        id,
+        name,
+        premium_videos (
+          id,
+          title,
+          thumbnail_url,
+          duration
+        )
+      `)
+      .order("order_index", { ascending: true });
+      setModulesData(formatModulesData(data))
+    }
+
+    getData();
+  }, [])
   return (
     <AppLayout>
       <main
@@ -618,7 +397,7 @@ function ContentCard({ item, moduleId }: ContentCardProps) {
         "relative rounded-md overflow-hidden cursor-pointer group/card transition-all duration-300 hover:shadow-lg",
         isDark ? "hover:shadow-black/20" : "hover:shadow-gray-400/20",
       )}
-      onClick={() => (window.location.href = `/premium/modulo/${moduleId}`)}
+      onClick={() => (window.location.href = `/premium/modulo/${moduleId}/${item.id-1}`)}
     >
       {/* Thumbnail */}
       <div className="relative aspect-[2/3] bg-gray-900 rounded-md overflow-hidden">

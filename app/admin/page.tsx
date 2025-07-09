@@ -44,40 +44,18 @@ import {
 import Link from "next/link"
 import BottomNavigation from "@/components/bottom-navigation"
 import { Progress } from "@/components/ui/progress"
+import { supabase } from "@/lib/supabase"
 
-// Mock data para demonstração
-const mockUsers = [
-  { id: 1, name: "João Silva", email: "joao@email.com", isPremium: true, isBlocked: false, posts: 15 },
-  { id: 2, name: "Maria Santos", email: "maria@email.com", isPremium: false, isBlocked: false, posts: 8 },
-  { id: 3, name: "Pedro Costa", email: "pedro@email.com", isPremium: true, isBlocked: true, posts: 22 },
-]
 
-const mockProducts = [
-  {
-    id: 1,
-    name: "Whey Protein",
-    description: "Proteína premium",
-    fitcoinPrice: 500,
-    realPrice: 89.9,
-    image: "/placeholder.svg",
-    file: "whey-guide.pdf",
-    externalLink: "https://loja.com/whey",
-    sales: 45,
-  },
-  {
-    id: 2,
-    name: "Creatina",
-    description: "Creatina monohidratada",
-    fitcoinPrice: 300,
-    realPrice: 59.9,
-    image: "/placeholder.svg",
-    file: "creatina-guide.pdf",
-    externalLink: "https://loja.com/creatina",
-    sales: 32,
-  },
-]
 
-const mockFitzContent = [
+
+
+export default function AdminDashboard() {
+  const [progress, setProgress] = useState(13)
+  const [activeTab, setActiveTab] = useState("stats")
+  const [chartData, setChartData] = useState<number[]>([35, 55, 42, 58, 63, 70, 78])
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [mockFitzContent, setMockFitzContent] = useState([
   {
     id: 1,
     type: "video",
@@ -87,22 +65,25 @@ const mockFitzContent = [
     link: "/treino/peito",
     isVisible: true,
   },
-  {
-    id: 2,
-    type: "image",
-    file: "pose1.jpg",
-    caption: "Pose de competição",
-    author: "Maria Santos",
-    link: "/poses/comp",
-    isVisible: true,
-  },
-]
+])
 
-export default function AdminDashboard() {
-  const [progress, setProgress] = useState(13)
-  const [activeTab, setActiveTab] = useState("stats")
-  const [chartData, setChartData] = useState<number[]>([35, 55, 42, 58, 63, 70, 78])
-  const [isLoaded, setIsLoaded] = useState(false)
+  const [mockUsers, setMockUsers] = useState([
+    { id: 1, full_name: "", email: "", is_premium: true, is_blocked: false, posts_count: 0,user_type:"" }
+  ]);
+
+  const [mockProducts, setMockProducts] = useState([
+    {
+      id: 1,
+      name: "Whey Protein",
+      description: "Proteína premium",
+      fitcoin_price: 500,
+      real_price: 89.9,
+      image_url: "/placeholder.svg",
+      file_url: "whey-guide.pdf",
+      external_link: "https://loja.com/whey",
+      sales_count: 45,
+    }
+  ]);
 
   // Estados para uploads de arquivos
   const [uploadingFiles, setUploadingFiles] = useState<{ [key: string]: boolean }>({})
@@ -114,34 +95,12 @@ export default function AdminDashboard() {
       id: 1,
       title: "🎉 Novos treinos premium disponíveis!",
       message: "Confira os exercícios exclusivos para membros premium.",
-      actionText: "Ver treinos",
-      actionLink: "/premium",
+      action_text: "Ver treinos",
+      action_link: "/premium",
       type: "premium",
       status: "sent",
       sentAt: "2024-01-15T10:30:00Z",
       recipients: 3200,
-    },
-    {
-      id: 2,
-      title: "📱 Nova atualização disponível!",
-      message: "Melhorias na interface e novos recursos.",
-      actionText: "Atualizar",
-      actionLink: "/update",
-      type: "update",
-      status: "sent",
-      sentAt: "2024-01-14T15:45:00Z",
-      recipients: 12500,
-    },
-    {
-      id: 3,
-      title: "🎯 Evento especial: Semana do Fitness!",
-      message: "Participe dos desafios exclusivos e ganhe prêmios incríveis.",
-      actionText: "Participar",
-      actionLink: "/events",
-      type: "event",
-      status: "scheduled",
-      scheduledFor: "2024-01-16T09:00:00Z",
-      recipients: 12500,
     },
   ])
   const [showPushModal, setShowPushModal] = useState(false)
@@ -213,36 +172,127 @@ export default function AdminDashboard() {
     type: "banner",
     status: "active",
     placement: "feed",
-  })
+  });
 
-  // Função genérica para upload de arquivos
-  const handleFileUpload = async (file: File, uploadKey: string) => {
-    if (!file) return
-
-    setUploadingFiles((prev) => ({ ...prev, [uploadKey]: true }))
-
-    try {
-      // Simular upload - aqui você integraria com seu serviço de upload (Supabase Storage, etc.)
-      const formData = new FormData()
-      formData.append("file", file)
-
-      // Simular delay de upload
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-
-      // Simular URL do arquivo uploadado
-      const fileUrl = URL.createObjectURL(file)
-      setUploadedFiles((prev) => ({ ...prev, [uploadKey]: fileUrl }))
-
-      alert(`✅ Arquivo "${file.name}" enviado com sucesso!`)
-    } catch (error) {
-      alert(`❌ Erro ao enviar arquivo: ${error.message}`)
-    } finally {
-      setUploadingFiles((prev) => ({ ...prev, [uploadKey]: false }))
-    }
+  const getUsers = async () => {
+    const { data, error } = await supabase
+            .from("profiles")
+            .select(`
+              *`)
+      
+          if (error) {
+            console.error("Erro ao buscar posts com perfil:", error)
+          } else {
+            console.log("Posts com perfil completo:", data)
+          }
+          setMockUsers(data || [])
   }
 
+  const getProducts = async () => {
+    const { data, error } = await supabase
+            .from("products")
+            .select(`
+              *`)
+      
+          if (error) {
+            console.error("Erro ao buscar posts com perfil:", error)
+          } else {
+            console.log("Posts com perfil completo:", data)
+          }
+          setMockProducts(data || [])
+  }
+
+  const getModules = async () => {
+    const { data, error } = await supabase
+            .from("premium_modules")
+            .select(`*`)
+      
+          if (error) {
+            console.error("Erro ao buscar posts com perfil:", error)
+          } else {
+            console.log("Posts com perfil completo:", data)
+          }
+          setModules(data || [])
+  }
+
+  const getVideos = async () => {
+    const { data, error } = await supabase
+            .from("premium_videos")
+            .select(`*`)
+      
+          if (error) {
+            console.error("Erro ao buscar posts com perfil:", error)
+          } else {
+            console.log("Posts com perfil completo:", data)
+          }
+          setVideos(data || [])
+  }
+
+  const getFitz = async () => {
+    const { data, error } = await supabase
+      .from("fitz")
+      .select(`
+        *
+      `)
+      setMockFitzContent(data)
+  }
+
+  const getAds = async () => {
+    const { data, error } = await supabase
+      .from("ads")
+      .select(`
+        *
+      `)
+      setMockAds(data)
+  }
+
+  const getNotifications = async () => {
+    const { data, error } = await supabase
+      .from("notifications")
+      .select(`
+        *
+      `)
+      setPushNotifications(data)
+  }
+
+  const getData = async () => {
+      getUsers();
+      getProducts();
+      getModules();
+      getVideos();
+      getFitz();
+      getAds();
+      getNotifications();
+  }
+
+  useEffect(() => {
+    getData();
+  }, []);
+
+  const handleFileUpload = (file: File, setData:(param:any) => void) => {
+    const reader = new FileReader()
+
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      setData(base64);
+      
+      console.log("Arquivo convertido:", {
+        base64,
+      })
+      // Aqui você pode enviar para sua API, armazenar no estado, etc.
+    }
+
+    reader.onerror = (error) => {
+      console.error("Erro ao ler o arquivo:", error)
+    }
+
+    reader.readAsDataURL(file)
+  }
+
+
+
   // Componente de upload reutilizável - MODIFICADO
-  const FileUploadArea = ({ uploadKey, accept, title, description, color = "purple", multiple = false }) => {
+  const FileUploadArea = ({ setData,uploadKey, accept, title, description, color = "purple", multiple = false }) => {
     const isUploading = uploadingFiles[uploadKey]
     const uploadedFile = uploadedFiles[uploadKey]
 
@@ -252,6 +302,7 @@ export default function AdminDashboard() {
       blue: "border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 text-blue-500",
       orange: "border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/10 text-orange-500",
     }
+    
 
     const handleClick = () => {
       const input = document.createElement("input")
@@ -260,7 +311,9 @@ export default function AdminDashboard() {
       input.multiple = multiple
       input.onchange = (e) => {
         const file = e.target.files?.[0]
-        if (file) handleFileUpload(file, uploadKey)
+        if (file) handleFileUpload(file, setData)
+        setUploadedFiles((prev) => ({ ...prev, [uploadKey]: true }))  
+        
       }
       input.click()
     }
@@ -291,28 +344,118 @@ export default function AdminDashboard() {
   // Estados para modais e edição
   const [editingUser, setEditingUser] = useState<any>(null)
   const [editingProduct, setEditingProduct] = useState<any>(null)
-  const [editingFitz, setEditingFitz] = useState<any>(null)
+  const [editingFitz, setEditingFitz] = useState<any>({ id: null, type: "video", file: "", caption: "", author: "", link: "", isVisible: true })
   const [showUserModal, setShowUserModal] = useState(false)
   const [showProductModal, setShowProductModal] = useState(false)
   const [showFitzModal, setShowFitzModal] = useState(false)
 
   // Estado do banner premium
   const [bannerData, setBannerData] = useState({
-    title: "Acesso Premium",
-    subtitle: "Desbloqueie todos os treinos, receitas e conteúdos exclusivos!",
-    buttonText: "Assinar Agora",
-    buttonLink: "/subscribe",
-    isActive: true,
-    image: "/placeholder.svg?height=400&width=800",
-  })
+  id: null, // <-- importante!
+  slug: "premium",
+  title: "",
+  description: "",
+  btn_text: "",
+  link: "",
+  image_url: "",
+  is_active: true
+})
 
   // Estado do banner da loja
   const [storeBannerData, setStoreBannerData] = useState({
-    buttonText: "Comprar Agora",
-    buttonLink: "/store/special",
-    isActive: true,
-    image: "/placeholder.svg?height=400&width=800",
-  })
+  id: null,
+  slug: "store",
+  title: "",
+  description: "",
+  btn_text: "",
+  link: "",
+  image_url: "",
+  is_active: true
+})
+
+useEffect(() => {
+  const fetchBanners = async () => {
+    const { data, error } = await supabase
+      .from("banners")
+      .select("*")
+      .in("slug", ["premium", "store"])
+
+    if (error) {
+      console.error("Erro ao buscar banners:", error)
+      return
+    }
+
+    const premium = data.find(b => b.slug === "premium")
+    const store = data.find(b => b.slug === "store")
+
+    if (premium) {
+      setBannerData({
+        id: premium.id,
+        slug: premium.slug,
+        title: premium.title || "",
+        description: premium.description || "",
+        btn_text: premium.btn_text || "",
+        link: premium.link || "",
+        image_url: premium.image_url || "",
+        is_active: premium.is_active
+      })
+    }
+
+    if (store) {
+      setStoreBannerData({
+        id: store.id,
+        slug: store.slug,
+        title: store.title || "",
+        description: store.description || "",
+        btn_text: store.btn_text || "",
+        link: store.link || "",
+        image_url: store.image_url || "",
+        is_active: store.is_active
+      })
+    }
+  }
+
+  fetchBanners()
+}, [])
+
+  const handleBannerSave = async () => {
+    const { error } = await supabase.from("banners").upsert({
+      slug: "premium",
+      title: bannerData.title,
+      description: bannerData.description,
+      btn_text: bannerData.btn_text,
+      link: bannerData.link,
+      image_url: bannerData.image_url,
+      is_active: bannerData.is_active,
+      
+    }, { onConflict: ["slug"] })
+
+    if (error) {
+      alert("Erro ao salvar banner!")
+      console.error(error)
+    } else {
+      alert("Banner atualizado com sucesso! 🎉")
+    }
+  }
+
+  const handleStoreBannerSave = async () => {
+    const { error } = await supabase.from("banners").upsert({
+      slug: "store",
+      title: storeBannerData.title,
+      description: storeBannerData.description,
+      btn_text: storeBannerData.btn_text,
+      link: storeBannerData.link,
+      image_url: storeBannerData.image_url,
+      is_active: storeBannerData.is_active,
+    }, { onConflict: ["slug"] })
+
+    if (error) {
+      alert("Erro ao salvar banner da loja!")
+      console.error(error)
+    } else {
+      alert("Banner da loja atualizado com sucesso! 🎉")
+    }
+  }
 
   // Estados para Área Premium
   const [modules, setModules] = useState([])
@@ -322,12 +465,12 @@ export default function AdminDashboard() {
   const [editingModule, setEditingModule] = useState(null)
   const [editingVideo, setEditingVideo] = useState(null)
   const [selectedModuleId, setSelectedModuleId] = useState(null)
-  const [moduleForm, setModuleForm] = useState({ modulo_nome: "" })
+  const [moduleForm, setModuleForm] = useState({ name: "", description: "" })
   const [videoForm, setVideoForm] = useState({
-    video_nome: "",
-    video_descricao: "",
+    title: "",
+    description: "",
     video_url: "",
-    thumb_url: "",
+    thumbnail_url: "",
     material_url: "",
   })
 
@@ -362,32 +505,31 @@ export default function AdminDashboard() {
     setShowAdModal(true)
   }
 
-  const handleAdSave = () => {
+  const handleAdSave = async () => {
     if (!adForm.name.trim() || !adForm.caption.trim()) {
       alert("❌ Nome e legenda são obrigatórios!")
       return
     }
 
-    const newAd = {
-      id: editingAd || Date.now(),
-      name: adForm.name,
-      caption: adForm.caption,
-      buttonText: adForm.buttonText,
-      buttonLink: adForm.buttonLink,
-      category: adForm.category,
-      type: adForm.type,
-      status: adForm.status,
-      placement: adForm.placement,
-      image: "/placeholder.svg?height=300&width=400",
-      impressions: 0,
-      clicks: 0,
+    if(editingAd){
+      const { error: updateError } = await supabase
+        .from("ads")
+        .update(adForm)
+        .eq("id", editingAd)
+
+        console.log(updateError);
+    }else{
+
+      const { error: updateError } = await supabase
+      .from("ads")
+      .insert(adForm)
     }
 
+    getAds();
+
     if (editingAd) {
-      setMockAds((prev) => prev.map((ad) => (ad.id === editingAd ? { ...ad, ...newAd } : ad)))
       alert("✅ Anúncio atualizado com sucesso!")
     } else {
-      setMockAds((prev) => [newAd, ...prev])
       alert("✅ Anúncio criado com sucesso!")
     }
 
@@ -395,9 +537,13 @@ export default function AdminDashboard() {
     setEditingAd(null)
   }
 
-  const handleAdDelete = (id) => {
+  const handleAdDelete = async (id) => {
     if (confirm("Tem certeza que deseja excluir este anúncio?")) {
-      setMockAds((prev) => prev.filter((ad) => ad.id !== id))
+      const { error: updateError } = await supabase
+        .from("ads")
+        .delete()
+        .eq("id", id)
+      getAds();
       alert("🗑️ Anúncio excluído com sucesso!")
     }
   }
@@ -489,13 +635,7 @@ export default function AdminDashboard() {
     }
   }, [showUserModal, showProductModal, showFitzModal, showModuleModal, showVideoModal, showPushModal, showAdModal])
 
-  const handleBannerSave = () => {
-    alert("Banner atualizado com sucesso! 🎉")
-  }
-
-  const handleStoreBannerSave = () => {
-    alert("Banner da loja atualizado com sucesso! 🎉")
-  }
+  
 
   // Funções para gerenciar usuários
   const handleUserEdit = (user: any) => {
@@ -506,22 +646,45 @@ export default function AdminDashboard() {
   const handleUserCreate = () => {
     setEditingUser({
       id: null,
-      name: "",
+      full_name: "",
       username: "",
       email: "",
       whatsapp: "",
       password: "",
-      userType: "free",
-      isBlocked: false,
-      posts: 0,
+      user_type: "free",
+      is_blocked: false,
+      posts_count: 0,
     })
     setShowUserModal(true)
   }
 
-  const handleUserSave = () => {
+  const handleUserSave = async () => {
     alert(`Usuário ${editingUser.id ? "atualizado" : "criado"} com sucesso!`)
+    if(editingUser.id){
+      console.log(editingUser);
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update(editingUser)
+        .eq("id", editingUser.id)
+
+        console.log(updateError);
+    }else{
+      const { data, error: signUpError } = await supabase.auth.admin.createUser({
+        email: editingUser.email,
+        password: editingUser.password
+      })
+      if (signUpError) return 0;
+
+      const { error: updateError } = await supabase
+      .from("profiles")
+      .update(editingUser)
+      .eq("id", data.user?.id)
+
+    }
+
     setShowUserModal(false)
     setEditingUser(null)
+    getUsers();
   }
 
   const handleUserDelete = (userId: number) => {
@@ -545,20 +708,37 @@ export default function AdminDashboard() {
       id: null,
       name: "",
       description: "",
-      fitcoinPrice: 0,
-      realPrice: 0,
-      image: "",
-      file: "",
-      externalLink: "",
-      sales: 0,
+      fitcoin_price: 0,
+      real_price: 0,
+      image_url: "",
+      file_url: "",
+      external_link: "",
+      sales_count: 0,
     })
     setShowProductModal(true)
   }
 
-  const handleProductSave = () => {
-    alert(`Produto ${editingProduct.id ? "atualizado" : "criado"} com sucesso!`)
+  const handleProductSave = async () => {
+    alert(`Produto ${editingProduct.id ? "atualizado" : "criado"} com sucesso!`);
+
+    if(editingProduct.id){
+      const { error: updateError } = await supabase
+        .from("products")
+        .update(editingProduct)
+        .eq("id", editingProduct.id)
+
+        console.log(updateError);
+    }else{
+      const { id, ...productWithoutId } = editingProduct;
+
+      const { error: updateError } = await supabase
+        .from("products")
+        .insert(productWithoutId)
+        console.log(updateError);
+    }
     setShowProductModal(false)
     setEditingProduct(null)
+    getProducts();
   }
 
   const handleProductDelete = (productId: number) => {
@@ -578,78 +758,129 @@ export default function AdminDashboard() {
     setShowFitzModal(true)
   }
 
-  const handleFitzSave = () => {
+  const handleFitzSave = async () => {
     alert(`Conteúdo Fitz ${editingFitz.id ? "atualizado" : "criado"} com sucesso!`)
+    if(editingFitz.id){
+const { error: updateError } = await supabase
+        .from("fitz")
+        .update(editingFitz)
+        .eq("id", editingFitz.id)
+
+        console.log(updateError);
+    }else{
+      const {id, ...fitzWithoutId} = editingFitz;
+      const { error: updateError } = await supabase
+        .from("fitz")
+        .insert(fitzWithoutId)
+        console.log(updateError);
+    }
+    getFitz();
     setShowFitzModal(false)
-    setEditingFitz(null)
+    setEditingFitz({ id: null, type: "video", file: "", caption: "", author: "", link: "", isVisible: true })
   }
 
-  const handleFitzDelete = (fitzId: number) => {
+  const handleFitzDelete = async (fitzId: string) => {
     if (confirm("Tem certeza que deseja excluir este conteúdo?")) {
+      const { error: deleteError } = await supabase
+        .from("fitz")
+        .delete()
+        .eq("id", fitzId);
       alert("Conteúdo Fitz excluído com sucesso!")
     }
   }
 
-  const handleFitzToggleVisibility = (fitzId: number, isVisible: boolean) => {
+  const handleFitzToggleVisibility = async (fitzId: string, isVisible: boolean) => {
+    const { error: updateError } = await supabase
+        .from("fitz")
+        .update({isVisible})
+        .eq("id", fitzId)
     alert(`Conteúdo ${isVisible ? "ocultado" : "exibido"} com sucesso!`)
   }
 
   // Funções para Área Premium
-  const handleAddModule = () => {
-    if (!moduleForm.modulo_nome.trim()) return
-    const newModule = {
-      id: Date.now(),
-      modulo_nome: moduleForm.modulo_nome,
-      created_at: new Date().toISOString(),
-      is_active: true,
+  const handleAddModule = async () => {
+    if (!moduleForm.name.trim()) return
+    const newModule:any = moduleForm;
+    if(newModule.id){
+      const { error: updateError } = await supabase
+        .from("premium_modules")
+        .update(newModule)
+        .eq("id", newModule.id)
+
+        console.log(updateError);
+
+    }else{
+      const {id, ...moduleWithoutId} = newModule;
+      const { error: updateError } = await supabase
+        .from("premium_modules")
+        .insert(moduleWithoutId)
+        console.log(updateError);
+      
     }
-    setModules([...modules, newModule])
-    setModuleForm({ modulo_nome: "" })
-    setShowModuleModal(false)
-    alert("Módulo criado com sucesso! 🎉")
+    alert(`Módulo ${newModule.id ? "criado" : "editado"} com sucesso! 🎉`);
+    getModules();
   }
 
-  const handleDeleteModule = () => {
+  const handleDeleteModule = async () => {
     if (editingModule === null) return
     if (confirm("Tem certeza que deseja excluir este módulo?")) {
+      const { error: deleteError } = await supabase
+      .from("premium_modules")
+      .delete()
+      .eq("id", editingModule);
       setModules(modules.filter((m) => m.id !== editingModule))
       setVideos(videos.filter((v) => v.modulo_id !== editingModule))
       setEditingModule(null)
-      setShowModuleModal(false)
+      setShowModuleModal(false);
+      
+
       alert("Módulo excluído com sucesso! 🗑️")
+      getModules();
     }
   }
 
-  const handleAddVideo = () => {
-    if (!videoForm.video_nome.trim() || selectedModuleId === null) return
-    const newVideo = {
-      id: Date.now(),
-      modulo_id: selectedModuleId,
-      video_nome: videoForm.video_nome,
-      video_descricao: videoForm.video_descricao,
-      video_url: videoForm.video_url,
-      thumb_url: videoForm.thumb_url,
-      material_url: videoForm.material_url,
-      created_at: new Date().toISOString(),
-      is_active: true,
+  const handleAddVideo = async () => {
+    if (!videoForm.title.trim() || selectedModuleId === null) return
+    if(videoForm.id){
+      const { error: updateError } = await supabase
+        .from("premium_videos")
+        .update(videoForm)
+        .eq("id", videoForm.id)
+
+        console.log(updateError);
+
+    }else{
+      const {id, ...videoWithoutId} = videoForm;
+      const { error: updateError } = await supabase
+        .from("premium_videos")
+        .insert({...videoWithoutId, module_id: selectedModuleId})
+        console.log(updateError);
+      
     }
-    setVideos([...videos, newVideo])
+    
+
+    getVideos();
     setVideoForm({
-      video_nome: "",
-      video_descricao: "",
+      title: "",
+      description: "",
       video_url: "",
-      thumb_url: "",
+      thumbnail_url: "",
       material_url: "",
     })
     setSelectedModuleId(null)
     setShowVideoModal(false)
-    alert("Vídeo adicionado com sucesso! 🎬")
+    alert(`Vídeo ${videoForm.id ? "editado" : "criado"} com sucesso! 🎬`)
   }
 
-  const handleDeleteVideo = () => {
+  const handleDeleteVideo = async () => {
     if (editingVideo === null) return
     if (confirm("Tem certeza que deseja excluir este vídeo?")) {
-      setVideos(videos.filter((v) => v.id !== editingVideo))
+      const { error: deleteError } = await supabase
+      .from("premium_videos")
+      .delete()
+      .eq("id", editingVideo);
+
+      getVideos();
       setEditingVideo(null)
       setShowVideoModal(false)
       alert("Vídeo excluído com sucesso! 🗑️")
@@ -657,7 +888,7 @@ export default function AdminDashboard() {
   }
 
   const getModuleVideos = (moduleId) => {
-    return videos.filter((video) => video.modulo_id === moduleId)
+    return videos.filter((video) => video.module_id === moduleId)
   }
 
   // Funções para notificações push
@@ -689,7 +920,7 @@ export default function AdminDashboard() {
     setShowPushModal(true)
   }
 
-  const handlePushSave = () => {
+  const handlePushSave = async () => {
     if (!pushForm.title.trim() || !pushForm.message.trim()) {
       alert("❌ Título e mensagem são obrigatórios!")
       return
@@ -699,8 +930,8 @@ export default function AdminDashboard() {
       id: editingPush || Date.now(),
       title: pushForm.title,
       message: pushForm.message,
-      actionText: pushForm.actionText,
-      actionLink: pushForm.actionLink,
+      action_text: pushForm.actionText,
+      action_link: pushForm.actionLink,
       type: pushForm.type,
       status: pushForm.scheduleType === "now" ? "sent" : "scheduled",
       sentAt: pushForm.scheduleType === "now" ? new Date().toISOString() : null,
@@ -709,10 +940,24 @@ export default function AdminDashboard() {
     }
 
     if (editingPush) {
-      setPushNotifications((prev) => prev.map((n) => (n.id === editingPush ? newNotification : n)))
-      alert("✅ Notificação atualizada com sucesso!")
-    } else {
-      setPushNotifications((prev) => [newNotification, ...prev])
+      
+      
+    const { error: updateError } = await supabase
+        .from("notifications")
+        .update(newNotification)
+        .eq("id", newNotification.id)
+
+        console.log(updateError);
+        getNotifications();
+        alert("✅ Notificação atualizada com sucesso!")
+
+    }else{
+      const {id, ...notificationsWId} = newNotification;
+      const { error: updateError } = await supabase
+        .from("notifications")
+        .insert({...notificationsWId})
+        console.log(updateError);
+      getNotifications();
       if (pushForm.scheduleType === "now") {
         alert("🚀 Notificação enviada para todos os usuários!")
       } else {
@@ -1183,14 +1428,14 @@ export default function AdminDashboard() {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
-                            <h4 className="font-medium text-foreground">{user.name}</h4>
-                            <Badge variant={user.isPremium ? "default" : "secondary"}>
-                              {user.isPremium ? "Premium" : "Free"}
+                            <h4 className="font-medium text-foreground">{user.full_name}</h4>
+                            <Badge variant={user.is_premium ? "default" : "secondary"}>
+                              {user.user_type}
                             </Badge>
-                            {user.isBlocked && <Badge variant="destructive">Bloqueado</Badge>}
+                            {user.is_blocked && <Badge variant="destructive">Bloqueado</Badge>}
                           </div>
                           <p className="text-sm text-muted-foreground">{user.email}</p>
-                          <p className="text-xs text-muted-foreground">{user.posts} posts</p>
+                          <p className="text-xs text-muted-foreground">{user.posts_count} posts</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" variant="outline" onClick={() => handleUserEdit(user)}>
@@ -1200,11 +1445,11 @@ export default function AdminDashboard() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleUserBlock(user.id, user.isBlocked)}
-                            className={user.isBlocked ? "text-green-500" : "text-orange-500"}
+                            onClick={() => handleUserBlock(user.id, user.is_blocked)}
+                            className={user.is_blocked ? "text-green-500" : "text-orange-500"}
                           >
-                            {user.isBlocked ? <UserCheck className="w-3 h-3 mr-1" /> : <Ban className="w-3 h-3 mr-1" />}
-                            {user.isBlocked ? "Desbloquear" : "Bloquear"}
+                            {user.is_blocked ? <UserCheck className="w-3 h-3 mr-1" /> : <Ban className="w-3 h-3 mr-1" />}
+                            {user.is_blocked ? "Desbloquear" : "Bloquear"}
                           </Button>
                           <Button size="sm" variant="destructive" onClick={() => handleUserDelete(user.id)}>
                             <Trash2 className="w-3 h-3 mr-1" />
@@ -1246,8 +1491,8 @@ export default function AdminDashboard() {
                     </Label>
                     <Switch
                       id="store-banner-active-main"
-                      checked={storeBannerData.isActive}
-                      onCheckedChange={(checked) => setStoreBannerData((prev) => ({ ...prev, isActive: checked }))}
+                      checked={storeBannerData.is_active}
+                      onCheckedChange={(checked) => setStoreBannerData((prev) => ({ ...prev, is_active: checked }))}
                     />
                   </div>
                 </CardHeader>
@@ -1258,12 +1503,12 @@ export default function AdminDashboard() {
                     <div className="relative w-full h-24 sm:h-32 rounded-lg overflow-hidden border border-border/50">
                       <div
                         className="absolute inset-0 bg-cover bg-center"
-                        style={{ backgroundImage: `url(${storeBannerData.image})` }}
+                        style={{ backgroundImage: `url(${storeBannerData.image_url})` }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-r from-orange-500/60 via-orange-500/40 to-purple-500/60" />
                       <div className="absolute inset-0 flex items-center justify-center">
                         <Button size="sm" className="bg-gradient-to-r from-orange-500 to-purple-600 text-white text-xs">
-                          {storeBannerData.buttonText}
+                          {storeBannerData.btn_text}
                         </Button>
                       </div>
                     </div>
@@ -1274,8 +1519,8 @@ export default function AdminDashboard() {
                       <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-orange-500" /> Texto do Botão
                     </Label>
                     <Input
-                      value={storeBannerData.buttonText}
-                      onChange={(e) => setStoreBannerData((prev) => ({ ...prev, buttonText: e.target.value }))}
+                      value={storeBannerData.btn_text}
+                      onChange={(e) => setStoreBannerData((prev) => ({ ...prev, btn_text: e.target.value }))}
                       placeholder="Comprar Agora"
                       className="bg-card border-border/50 focus-visible:ring-orange-500 mt-1.5 h-8 sm:h-10 text-xs sm:text-sm"
                     />
@@ -1286,15 +1531,16 @@ export default function AdminDashboard() {
                       <ExternalLink className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-orange-500" /> Link do Botão
                     </Label>
                     <Input
-                      value={storeBannerData.buttonLink}
-                      onChange={(e) => setStoreBannerData((prev) => ({ ...prev, buttonLink: e.target.value }))}
+                      value={storeBannerData.link}
+                      onChange={(e) => setStoreBannerData((prev) => ({ ...prev, link: e.target.value }))}
                       placeholder="/store/special"
                       className="bg-card border-border/50 focus-visible:ring-orange-500 mt-1.5 h-8 sm:h-10 text-xs sm:text-sm"
                     />
                   </div>
 
                   <FileUploadArea
-                    uploadKey="store-banner-main"
+                    uploadKey="premium-banner-store"
+                    setData={(banner:string) => setStoreBannerData({...storeBannerData, image_url: banner})}
                     accept="image/*"
                     title="Arraste uma imagem ou clique para fazer upload"
                     description="Recomendado: 1200x400px, formato JPG ou PNG"
@@ -1322,9 +1568,9 @@ export default function AdminDashboard() {
                           <h4 className="font-medium text-foreground mb-1">{product.name}</h4>
                           <p className="text-sm text-muted-foreground mb-2">{product.description}</p>
                           <div className="flex flex-wrap gap-4 text-sm">
-                            <span className="text-purple-500">{product.fitcoinPrice} Fitcoins</span>
-                            <span className="text-green-500">R$ {product.realPrice}</span>
-                            <span className="text-blue-500">{product.sales} vendas</span>
+                            <span className="text-purple-500">{product.fitcoin_price} Fitcoins</span>
+                            <span className="text-green-500">R$ {product.real_price}</span>
+                            <span className="text-blue-500">{product.sales_count} vendas</span>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -1351,7 +1597,7 @@ export default function AdminDashboard() {
                 <Button
                   onClick={() => {
                     setEditingModule(null)
-                    setModuleForm({ modulo_nome: "" })
+                    setModuleForm({ name: "", description: "" })
                     setShowModuleModal(true)
                   }}
                   className="bg-gradient-to-r from-pink-500 to-purple-500 text-white"
@@ -1376,8 +1622,8 @@ export default function AdminDashboard() {
                     </Label>
                     <Switch
                       id="banner-active-main"
-                      checked={bannerData.isActive}
-                      onCheckedChange={(checked) => setBannerData((prev) => ({ ...prev, isActive: checked }))}
+                      checked={bannerData.is_active}
+                      onCheckedChange={(checked) => setBannerData((prev) => ({ ...prev, is_active: checked }))}
                     />
                   </div>
                 </CardHeader>
@@ -1388,16 +1634,16 @@ export default function AdminDashboard() {
                     <div className="relative w-full h-32 sm:h-40 rounded-lg overflow-hidden border border-border/50">
                       <div
                         className="absolute inset-0 bg-cover bg-center"
-                        style={{ backgroundImage: `url(${bannerData.image})` }}
+                        style={{ backgroundImage: `url(${bannerData.image_url})` }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-black/60" />
                       <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-4">
                         <h3 className="text-lg sm:text-xl font-bold text-white mb-2 drop-shadow-lg">
                           {bannerData.title}
                         </h3>
-                        <p className="text-xs sm:text-sm text-white/90 mb-3 drop-shadow-md">{bannerData.subtitle}</p>
+                        <p className="text-xs sm:text-sm text-white/90 mb-3 drop-shadow-md">{bannerData.description}</p>
                         <Button size="sm" className="bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs">
-                          {bannerData.buttonText}
+                          {bannerData.btn_text}
                         </Button>
                       </div>
                     </div>
@@ -1420,8 +1666,8 @@ export default function AdminDashboard() {
                         <ExternalLink className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-500" /> Link do Botão
                       </Label>
                       <Input
-                        value={bannerData.buttonLink}
-                        onChange={(e) => setBannerData((prev) => ({ ...prev, buttonLink: e.target.value }))}
+                        value={bannerData.link}
+                        onChange={(e) => setBannerData((prev) => ({ ...prev, link: e.target.value }))}
                         placeholder="/subscribe"
                         className="bg-card border-border/50 focus-visible:ring-purple-500 mt-1.5 h-8 sm:h-10 text-xs sm:text-sm"
                       />
@@ -1433,8 +1679,8 @@ export default function AdminDashboard() {
                       <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-500" /> Legenda
                     </Label>
                     <Textarea
-                      value={bannerData.subtitle}
-                      onChange={(e) => setBannerData((prev) => ({ ...prev, subtitle: e.target.value }))}
+                      value={bannerData.description}
+                      onChange={(e) => setBannerData((prev) => ({ ...prev, description: e.target.value }))}
                       placeholder="Descrição do banner..."
                       className="bg-card border-border/50 focus-visible:ring-purple-500 mt-1.5 min-h-[60px] sm:min-h-[80px] text-xs sm:text-sm"
                     />
@@ -1445,8 +1691,8 @@ export default function AdminDashboard() {
                       <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-500" /> Texto do Botão
                     </Label>
                     <Input
-                      value={bannerData.buttonText}
-                      onChange={(e) => setBannerData((prev) => ({ ...prev, buttonText: e.target.value }))}
+                      value={bannerData.btn_text}
+                      onChange={(e) => setBannerData((prev) => ({ ...prev, btn_text: e.target.value }))}
                       placeholder="Assinar Agora"
                       className="bg-card border-border/50 focus-visible:ring-purple-500 mt-1.5 h-8 sm:h-10 text-xs sm:text-sm"
                     />
@@ -1454,6 +1700,7 @@ export default function AdminDashboard() {
 
                   <FileUploadArea
                     uploadKey="premium-banner-main"
+                    setData={(base64:any) => setBannerData((prev) => ({ ...prev, image_url: base64 }))}
                     accept="image/*"
                     title="Arraste uma imagem ou clique para fazer upload"
                     description="Recomendado: 1200x400px, formato JPG ou PNG"
@@ -1470,7 +1717,7 @@ export default function AdminDashboard() {
               </Card>
 
               <div className="space-y-4">
-                {modules.map((module) => {
+                {modules.map((module:any) => {
                   const moduleVideos = getModuleVideos(module.id)
                   return (
                     <Card key={module.id} className="bg-card/50 backdrop-blur-sm border-border/50 overflow-hidden">
@@ -1482,8 +1729,9 @@ export default function AdminDashboard() {
                             </div>
                             <div>
                               <h3 className="font-semibold text-foreground text-sm sm:text-base">
-                                {module.modulo_nome}
+                                {module.title}
                               </h3>
+                              <p> {module.description}</p>
                               <p className="text-xs sm:text-sm text-muted-foreground">
                                 {moduleVideos.length} vídeo{moduleVideos.length !== 1 ? "s" : ""}
                               </p>
@@ -1498,10 +1746,10 @@ export default function AdminDashboard() {
                                 setEditingVideo(null)
                                 setSelectedModuleId(module.id)
                                 setVideoForm({
-                                  video_nome: "",
-                                  video_descricao: "",
+                                  title: "",
+                                  description: "",
                                   video_url: "",
-                                  thumb_url: "",
+                                  thumbnail_url: "",
                                   material_url: "",
                                 })
                                 setShowVideoModal(true)
@@ -1516,7 +1764,7 @@ export default function AdminDashboard() {
                               className="h-7 sm:h-8 text-xs border-border/50"
                               onClick={() => {
                                 setEditingModule(module.id)
-                                setModuleForm({ modulo_nome: module.modulo_nome })
+                                setModuleForm({ ...module })
                                 setShowModuleModal(true)
                               }}
                             >
@@ -1527,7 +1775,7 @@ export default function AdminDashboard() {
 
                         {moduleVideos.length > 0 && (
                           <div className="space-y-2">
-                            {moduleVideos.map((video) => (
+                            {moduleVideos.map((video:any) => (
                               <div
                                 key={video.id}
                                 className="flex items-center gap-3 p-3 bg-background/50 rounded-lg border border-border/30"
@@ -1537,9 +1785,9 @@ export default function AdminDashboard() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <h4 className="font-medium text-foreground text-xs sm:text-sm truncate">
-                                    {video.video_nome}
+                                    {video.title}
                                   </h4>
-                                  <p className="text-xs text-muted-foreground truncate">{video.video_descricao}</p>
+                                  <p className="text-xs text-muted-foreground truncate">{video.description}</p>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Button
@@ -1548,13 +1796,7 @@ export default function AdminDashboard() {
                                     className="h-6 w-6 p-0"
                                     onClick={() => {
                                       setEditingVideo(video.id)
-                                      setVideoForm({
-                                        video_nome: video.video_nome,
-                                        video_descricao: video.video_descricao,
-                                        video_url: video.video_url,
-                                        thumb_url: video.thumb_url,
-                                        material_url: video.material_url,
-                                      })
+                                      setVideoForm(video)
                                       setShowVideoModal(true)
                                     }}
                                   >
@@ -1743,10 +1985,10 @@ export default function AdminDashboard() {
                                 </span>
                               )}
                             </div>
-                            {notification.actionText && (
+                            {notification.action_text && (
                               <div className="mt-2">
                                 <Badge variant="outline" className="text-xs">
-                                  Botão: {notification.actionText}
+                                  Botão: {notification.action_text}
                                 </Badge>
                               </div>
                             )}
@@ -1807,7 +2049,7 @@ export default function AdminDashboard() {
                       <div>
                         <p className="text-sm text-muted-foreground">Impressões</p>
                         <p className="text-xl font-bold text-foreground">
-                          {mockAds.reduce((total, ad) => total + ad.impressions, 0).toLocaleString()}
+                          {mockAds.reduce((total, ad) => total + ad.impressions, 0)}
                         </p>
                         <p className="text-xs text-green-500">+12% hoje</p>
                       </div>
@@ -1824,7 +2066,7 @@ export default function AdminDashboard() {
                       <div>
                         <p className="text-sm text-muted-foreground">Cliques</p>
                         <p className="text-xl font-bold text-foreground">
-                          {mockAds.reduce((total, ad) => total + ad.clicks, 0).toLocaleString()}
+                          {mockAds.reduce((total, ad) => total + ad.clicks, 0)}
                         </p>
                         <p className="text-xs text-green-500">+8% hoje</p>
                       </div>
@@ -1887,7 +2129,7 @@ export default function AdminDashboard() {
                             <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                               <span className="flex items-center gap-1">
                                 <Eye className="w-3 h-3" />
-                                {ad.impressions.toLocaleString()} impressões
+                                {ad.impressions} impressões
                               </span>
                               <span className="flex items-center gap-1">
                                 <TrendingUp className="w-3 h-3" />
@@ -2020,8 +2262,8 @@ export default function AdminDashboard() {
                 <div>
                   <Label className="text-foreground text-sm">Nome</Label>
                   <Input
-                    value={editingUser.name || ""}
-                    onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                    value={editingUser.full_name || ""}
+                    onChange={(e) => setEditingUser({ ...editingUser, full_name: e.target.value })}
                     placeholder="Nome completo do usuário"
                     className="mt-1 h-9"
                   />
@@ -2078,8 +2320,8 @@ export default function AdminDashboard() {
                         id="free"
                         name="userType"
                         value="free"
-                        checked={editingUser.userType === "free"}
-                        onChange={(e) => setEditingUser({ ...editingUser, userType: e.target.value })}
+                        checked={editingUser.user_type === "free"}
+                        onChange={(e) => setEditingUser({ ...editingUser, user_type: e.target.value })}
                         className="w-4 h-4 text-blue-600"
                       />
                       <Label htmlFor="free" className="text-sm">
@@ -2092,8 +2334,8 @@ export default function AdminDashboard() {
                         id="premium"
                         name="userType"
                         value="premium"
-                        checked={editingUser.userType === "premium"}
-                        onChange={(e) => setEditingUser({ ...editingUser, userType: e.target.value })}
+                        checked={editingUser.user_type === "premium"}
+                        onChange={(e) => setEditingUser({ ...editingUser, user_type: e.target.value })}
                         className="w-4 h-4 text-blue-600"
                       />
                       <Label htmlFor="premium" className="text-sm">
@@ -2106,8 +2348,8 @@ export default function AdminDashboard() {
                         id="produtor"
                         name="userType"
                         value="produtor"
-                        checked={editingUser.userType === "produtor"}
-                        onChange={(e) => setEditingUser({ ...editingUser, userType: e.target.value })}
+                        checked={editingUser.user_type === "produtor"}
+                        onChange={(e) => setEditingUser({ ...editingUser, user_type: e.target.value })}
                         className="w-4 h-4 text-blue-600"
                       />
                       <Label htmlFor="produtor" className="text-sm">
@@ -2120,8 +2362,8 @@ export default function AdminDashboard() {
                         id="admin"
                         name="userType"
                         value="admin"
-                        checked={editingUser.userType === "admin"}
-                        onChange={(e) => setEditingUser({ ...editingUser, userType: e.target.value })}
+                        checked={editingUser.user_type === "admin"}
+                        onChange={(e) => setEditingUser({ ...editingUser, user_type: e.target.value })}
                         className="w-4 h-4 text-blue-600"
                       />
                       <Label htmlFor="admin" className="text-sm">
@@ -2137,8 +2379,8 @@ export default function AdminDashboard() {
                     <p className="text-xs text-muted-foreground">Impede o acesso do usuário à plataforma</p>
                   </div>
                   <Switch
-                    checked={editingUser.isBlocked || false}
-                    onCheckedChange={(checked) => setEditingUser({ ...editingUser, isBlocked: checked })}
+                    checked={editingUser.is_blocked || false}
+                    onCheckedChange={(checked) => setEditingUser({ ...editingUser, is_blocked: checked })}
                   />
                 </div>
               </div>
@@ -2194,8 +2436,8 @@ export default function AdminDashboard() {
                     <Label className="text-foreground text-sm">Preço Fitcoin</Label>
                     <Input
                       type="number"
-                      value={editingProduct.fitcoinPrice}
-                      onChange={(e) => setEditingProduct({ ...editingProduct, fitcoinPrice: Number(e.target.value) })}
+                      value={editingProduct.fitcoin_price}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, fitcoin_price: Number(e.target.value) })}
                       placeholder="500"
                       className="mt-1 h-9"
                     />
@@ -2205,8 +2447,8 @@ export default function AdminDashboard() {
                     <Input
                       type="number"
                       step="0.01"
-                      value={editingProduct.realPrice}
-                      onChange={(e) => setEditingProduct({ ...editingProduct, realPrice: Number(e.target.value) })}
+                      value={editingProduct.real_price}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, real_price: Number(e.target.value) })}
                       placeholder="89.90"
                       className="mt-1 h-9"
                     />
@@ -2215,8 +2457,8 @@ export default function AdminDashboard() {
                 <div>
                   <Label className="text-foreground text-sm">Link Externo</Label>
                   <Input
-                    value={editingProduct.externalLink}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, externalLink: e.target.value })}
+                    value={editingProduct.external_link}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, external_link: e.target.value })}
                     placeholder="https://loja.com/produto"
                     className="mt-1 h-9"
                   />
@@ -2226,6 +2468,7 @@ export default function AdminDashboard() {
                   <Label className="text-foreground text-sm">Upload de Imagem</Label>
                   <div className="mt-1">
                     <FileUploadArea
+                      setData={(base64:any) => setEditingProduct({...editingProduct, image_url: base64})}
                       uploadKey={`product-image-${editingProduct.id || "new"}`}
                       accept="image/*"
                       title="Clique para fazer upload da imagem"
@@ -2240,6 +2483,7 @@ export default function AdminDashboard() {
                   <Label className="text-foreground text-sm">Upload de Arquivo</Label>
                   <div className="mt-1">
                     <FileUploadArea
+                      setData={(base64:any) => setEditingProduct({...editingProduct, file_url: base64})}
                       uploadKey={`product-file-${editingProduct.id || "new"}`}
                       accept=".pdf,.doc,.docx,.zip"
                       title="Clique para fazer upload do arquivo"
@@ -2319,6 +2563,7 @@ export default function AdminDashboard() {
                   <Label className="text-foreground text-sm">Upload de Arquivo</Label>
                   <div className="mt-1">
                     <FileUploadArea
+                    setData={(base64:any) => setEditingFitz((prev:any) => ({ ...prev, file: base64 }))}
                       uploadKey={`fitz-${editingFitz.id || "new"}`}
                       accept="image/*,video/*,.heic,.mov,.mp4"
                       title="Formatos aceitos: .heic, .jpg, .png, .mov, .mp4"
@@ -2367,8 +2612,8 @@ export default function AdminDashboard() {
                 <div>
                   <Label className="text-sm font-medium">Nome do Módulo</Label>
                   <Input
-                    value={moduleForm.modulo_nome}
-                    onChange={(e) => setModuleForm({ modulo_nome: e.target.value })}
+                    value={moduleForm.name}
+                    onChange={(e) => setModuleForm({ ...moduleForm, name: e.target.value })}
                     placeholder="Ex: Treino Avançado"
                     className="mt-1.5"
                   />
@@ -2411,8 +2656,8 @@ export default function AdminDashboard() {
                 <div>
                   <Label className="text-sm font-medium">Nome</Label>
                   <Input
-                    value={videoForm.video_nome}
-                    onChange={(e) => setVideoForm((prev) => ({ ...prev, video_nome: e.target.value }))}
+                    value={videoForm.title}
+                    onChange={(e) => setVideoForm((prev) => ({ ...prev, title: e.target.value }))}
                     placeholder="Ex: Treino de Peito Intenso"
                     className="mt-1.5"
                   />
@@ -2420,8 +2665,8 @@ export default function AdminDashboard() {
                 <div>
                   <Label className="text-sm font-medium">Descrição</Label>
                   <Textarea
-                    value={videoForm.video_descricao}
-                    onChange={(e) => setVideoForm((prev) => ({ ...prev, video_descricao: e.target.value }))}
+                    value={videoForm.description}
+                    onChange={(e) => setVideoForm((prev) => ({ ...prev, description: e.target.value }))}
                     placeholder="Descrição detalhada do vídeo..."
                     className="mt-1.5 min-h-[80px]"
                   />
@@ -2430,6 +2675,7 @@ export default function AdminDashboard() {
                   <Label className="text-sm font-medium">Upload Material de Apoio</Label>
                   <div className="mt-1.5">
                     <FileUploadArea
+                      setData={(base64:any) => setVideoForm((prev) => ({ ...prev, material_url: base64 }))}
                       uploadKey={`video-material-${selectedModuleId}-${editingVideo || "new"}`}
                       accept=".pdf,.doc,.docx,.zip,.txt"
                       title="Clique para fazer upload do material"
@@ -2443,6 +2689,7 @@ export default function AdminDashboard() {
                   <Label className="text-sm font-medium">Upload Foto de Capa/Thumb</Label>
                   <div className="mt-1.5">
                     <FileUploadArea
+                    setData={(base64:any) => setVideoForm((prev) => ({ ...prev, thumbnail_url: base64 }))}
                       uploadKey={`video-thumb-${selectedModuleId}-${editingVideo || "new"}`}
                       accept="image/*"
                       title="Clique para fazer upload da capa"
@@ -2456,6 +2703,7 @@ export default function AdminDashboard() {
                   <Label className="text-sm font-medium">Upload do Vídeo Principal</Label>
                   <div className="mt-1.5">
                     <FileUploadArea
+                    setData={(base64:any) => setVideoForm((prev) => ({ ...prev, video_url: base64 }))}
                       uploadKey={`video-main-${selectedModuleId}-${editingVideo || "new"}`}
                       accept="video/*"
                       title="Clique para fazer upload do vídeo"
@@ -2737,6 +2985,7 @@ export default function AdminDashboard() {
                   <Label className="text-sm font-medium">Upload da Imagem</Label>
                   <div className="mt-1.5">
                     <FileUploadArea
+                      setData={(base64:any) => setAdForm((prev) => ({ ...prev, image: base64 }))}
                       uploadKey={`ad-image-${editingAd || "new"}`}
                       accept=".heic,.jpg,.jpeg,.png"
                       title="Clique para fazer upload da imagem"

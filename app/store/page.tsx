@@ -13,14 +13,8 @@ import { useFitcoin } from "@/hooks/use-fitcoin"
 import { InsufficientFitcoinsAlert } from "@/components/insufficient-fitcoins-alert"
 import { addToPurchases } from "@/lib/purchase-utils"
 import { PurchaseSuccessNotification } from "@/components/purchase-success-notification"
-
-// Simulando dados do banner que viriam do admin
-const storeBannerData = {
-  image: "/placeholder.svg?height=400&width=800",
-  buttonText: "Comprar Agora",
-  buttonLink: "/store/special",
-  isActive: true,
-}
+import { supabase } from "@/lib/supabase"
+import { useUser } from "@supabase/auth-helpers-react"
 
 // Simulando produtos relâmpago
 const flashProducts = [
@@ -66,43 +60,43 @@ const flashProducts = [
   },
 ]
 
-// Produtos digitais regulares
-const digitalProducts = [
-  {
-    id: "digital1",
-    title: "E-book: Nutrição Esportiva",
-    image: "/placeholder.svg?height=200&width=150",
-    price: 500,
-    available: true,
-    realPrice: 39.9,
-  },
-  {
-    id: "digital2",
-    title: "Plano de Treino 30 dias",
-    image: "/placeholder.svg?height=200&width=150",
-    price: 750,
-    available: true,
-    realPrice: 59.9,
-  },
-  {
-    id: "digital3",
-    title: "Meditações Guiadas",
-    image: "/placeholder.svg?height=200&width=150",
-    price: 300,
-    available: true,
-    realPrice: 29.9,
-  },
-  {
-    id: "digital4",
-    title: "Acesso Premium 1 mês",
-    image: "/placeholder.svg?height=200&width=150",
-    price: 1000,
-    available: true,
-    realPrice: 79.9,
-  },
-]
+
 
 export default function StorePage() {
+  const user = useUser();
+
+  const [storeBannerData, setStoreBannerData] = useState({
+    image: "/placeholder.svg?height=400&width=800",
+    buttonText: "",
+    buttonLink: "",
+    isActive: false,
+  })
+
+  useEffect(() => {
+  const fetchStoreBanner = async () => {
+    const { data, error } = await supabase
+      .from("banners")
+      .select("*")
+      .eq("slug", "store")
+      .single()
+
+    if (error) {
+      console.error("Erro ao carregar banner da loja:", error)
+      return
+    }
+
+    setStoreBannerData({
+      image: data?.image_url || "/placeholder.svg?height=400&width=800",
+      buttonText: data?.btn_text || "Comprar Agora",
+      buttonLink: data?.link || "/store/special",
+      isActive: true, // Se quiser controlar, pode usar um campo is_active
+    })
+  }
+
+  fetchStoreBanner()
+}, [])
+
+
   const [currentFlashIndex, setCurrentFlashIndex] = useState(0)
   const [timeLeft, setTimeLeft] = useState<{ [key: string]: { hours: number; minutes: number; seconds: number } }>({})
   const [insufficientFitcoins, setInsufficientFitcoins] = useState<{ show: boolean; missing: number }>({
@@ -117,10 +111,32 @@ export default function StorePage() {
     productTitle: "",
   })
 
+  // Produtos digitais regulares
+const [digitalProducts, setDigitalProducts] = useState([
+  {
+    id: "digital3",
+    title: "Meditações Guiadas",
+    image_url: "/placeholder.svg?height=200&width=150",
+    fitcoin_price: 300,
+    available: true,
+    realPrice: 29.9,
+  }
+]);
+
   const { fitcoin, addFitcoin } = useFitcoin()
+
+  const getData = async () => {
+    const { data, error } = await supabase
+          .from("products")
+          .select(`
+            *
+          `)
+          setDigitalProducts(data);
+  }
 
   // Calcular tempo restante para cada produto
   useEffect(() => {
+    getData();
     const timer = setInterval(() => {
       const now = new Date()
       const newTimeLeft: { [key: string]: { hours: number; minutes: number; seconds: number } } = {}
@@ -179,35 +195,83 @@ export default function StorePage() {
   }
 
   // Função para processar a compra com Fitcoins
-  const handlePurchase = (product: { id: string; title: string; price: number; image: string; realPrice: number }) => {
-    if (fitcoin >= product.price) {
-      // Tem fitcoins suficientes
-      addFitcoin(-product.price, false) // Desconta os fitcoins (com valor negativo)
+  const handlePurchase = async (product: any) => {
+    if (fitcoin >= product.fitcoin_price) {
+      // 1️⃣ Desconta Fitcoins do profile no Supabase
+      const { data: userProfile, error: userError } = await supabase
+        .from("profiles")
+        .select("fitcoins")
+        .eq("id", user.id)
+        .single()
 
-      // Adicionar o produto às compras do usuário
+      if (userError) {
+        console.error("Erro ao buscar perfil:", userError)
+        return
+      }
+
+      const newFitcoinBalance = (userProfile.fitcoins || 0) - product.fitcoin_price
+
+      if (newFitcoinBalance < 0) {
+        // Verifica de novo no backend por segurança
+        setInsufficientFitcoins({
+          show: true,
+          missing: product.fitcoin_price - userProfile.fitcoins,
+        })
+        return
+      }
+
+      // 2️⃣ Atualiza saldo de Fitcoins
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ fitcoins: newFitcoinBalance })
+        .eq("id", user.id)
+
+      if (updateError) {
+        console.error("Erro ao atualizar fitcoins:", updateError)
+        return
+      }
+
+      // 3️⃣ Registra a compra na tabela purchases
+      const { error: insertError } = await supabase.from("purchases").insert([
+        {
+          user_id: user.id,
+          product_id: product.id,
+          price_paid: product.fitcoin_price,
+          currency: "fitcoin",
+          status: "completed",
+        },
+      ])
+
+      if (insertError) {
+        console.error("Erro ao registrar compra:", insertError)
+        return
+      }
+
+      // 4️⃣ Atualiza o estado local de Fitcoins e compras
+      addFitcoin(-product.fitcoin_price, false) // Atualiza client-side
       addToPurchases({
         id: product.id,
         title: product.title,
-        type: "ebook", // Assumindo ebook como padrão
+        type: "ebook",
         image: product.image,
-        price: product.price,
+        price: product.fitcoin_price,
         currency: "fitcoin",
-        description: `${product.title} adquirido com ${product.price} Fitcoins`,
+        description: `${product.title} adquirido com ${product.fitcoin_price} Fitcoins`,
         fileSize: "2.5 MB",
         format: "PDF",
-        downloadUrl: "/downloads/produto.pdf", // URL fictícia para download
+        downloadUrl: "/downloads/produto.pdf",
       })
 
-      // Mostra notificação de sucesso
       setPurchaseSuccess({
         show: true,
         productTitle: product.title,
       })
+
     } else {
-      // Não tem fitcoins suficientes
+      // Fitcoins insuficientes (client-side)
       setInsufficientFitcoins({
         show: true,
-        missing: product.price - fitcoin,
+        missing: product.fitcoin_price - fitcoin,
       })
     }
   }
@@ -345,7 +409,7 @@ export default function StorePage() {
                             <Coins className="w-4 h-4 text-yellow-400" />
                             <span className="font-bold text-xl text-foreground">{product.price}</span>
                           </div>
-                          <span className="text-sm text-muted-foreground line-through">{product.originalPrice}</span>
+                          <span className="text-sm text-muted-foreground line-through">{product.real_price}</span>
                         </div>
 
                         <div className="flex gap-2">
@@ -353,7 +417,7 @@ export default function StorePage() {
                             Trocar
                           </Button>
                           <Button variant="outline" className="flex-1 gap-1 hover:shadow-glow-blue">
-                            R$ {product.realPrice.toFixed(2).replace(".", ",")}
+                            R$ {product.real_price}
                           </Button>
                         </div>
                       </CardContent>
@@ -421,10 +485,10 @@ export default function StorePage() {
                   <ProductCard
                     key={product.id}
                     title={product.title}
-                    image={product.image}
-                    price={product.price}
-                    realPrice={product.realPrice}
-                    available={product.available}
+                    image={product.image_url}
+                    price={product.fitcoin_price}
+                    realPrice={product.real_price}
+                    available={product.is_available}
                     onPurchase={() => handlePurchase(product)}
                   />
                 ))}
@@ -498,7 +562,7 @@ function ProductCard({ title, image, price, realPrice, available, onPurchase }: 
           Trocar
         </Button>
         <Button size="sm" variant="outline" className="flex-1 gap-1 hover:shadow-glow-blue">
-          R$ {realPrice.toFixed(2).replace(".", ",")}
+          R$ {realPrice}
         </Button>
       </CardFooter>
     </Card>

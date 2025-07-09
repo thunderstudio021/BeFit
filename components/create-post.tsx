@@ -11,14 +11,18 @@ import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { ImageIcon, Smile, BarChart2, Type, FileVideo, Plus, X, ChevronDown, Clock, Trophy } from "lucide-react"
 import { useFitcoin } from "@/hooks/use-fitcoin"
+import { supabase } from "@/lib/supabase"
+import { useUser } from "@supabase/auth-helpers-react"
 
 interface CreatePostProps {
   onClose?: () => void
   className?: string
   onPostCreated?: () => void
+  location:string
+  profile:any
 }
 
-export default function CreatePost({ onClose, className, onPostCreated }: CreatePostProps) {
+export default function CreatePost({ location, onClose, className, onPostCreated, profile }: CreatePostProps) {
   const [activeTab, setActiveTab] = useState("text")
   const [postText, setPostText] = useState("")
   const [selectedColor, setSelectedColor] = useState<string | null>(null)
@@ -29,6 +33,7 @@ export default function CreatePost({ onClose, className, onPostCreated }: Create
   const [challengeDays, setChallengeDays] = useState(7)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { addFitcoin } = useFitcoin()
+  const user = useUser();
 
   // Cores vibrantes para status
   const backgroundColors = [
@@ -213,7 +218,7 @@ export default function CreatePost({ onClose, className, onPostCreated }: Create
     setPollOptions(newOptions)
   }
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     try {
       const currentUser = localStorage.getItem("currentUser") || "João Silva"
 
@@ -229,19 +234,52 @@ export default function CreatePost({ onClose, className, onPostCreated }: Create
         user: currentUser,
         avatar: "/placeholder.svg?height=40&width=40",
         content: postText,
-        image: activeTab === "media" && selectedMedia?.type.startsWith("image") ? mediaPreview : undefined,
-        videoThumbnail: activeTab === "media" && selectedMedia?.type.startsWith("video") ? mediaPreview : undefined,
-        backgroundColor: activeTab === "status" ? selectedColor : undefined,
-        pollOptions: activeTab === "poll" ? pollOptions.filter((opt) => opt.trim() !== "") : undefined,
+        image_url: activeTab === "media" && selectedMedia?.type.startsWith("image") ? mediaPreview : undefined,
+        video_url: activeTab === "media" && selectedMedia?.type.startsWith("video") ? mediaPreview : undefined,
+        background_color: activeTab === "status" ? selectedColor : undefined,
+        poll_options: activeTab === "poll" ? pollOptions.filter((opt) => opt.trim() !== "") : undefined,
         challengeTitle: activeTab === "challenge" ? challengeTitle : undefined,
         challengeDays: activeTab === "challenge" ? challengeDays : undefined,
-        likes: 0,
-        comments: 0,
-        shares: 0,
-        isVerified: false,
-        timestamp: new Date().toISOString(),
+        likes_count: 0,
+        comments_count: 0,
+        shares_count: 0,
+        is_premium_content: false,
+        updated_at: new Date().toISOString(),
         createdAt: Date.now(),
       }
+
+      const { error: insertError } = await supabase
+        .from("posts")
+        .insert({
+          user_id: user?.id,
+          type: activeTab === "media" ? (selectedMedia?.type.startsWith("video") ? "video" : "photo") : activeTab,
+          content: postText,
+          image_url: activeTab === "media" && selectedMedia?.type.startsWith("image") ? mediaPreview : undefined,
+          video_url: activeTab === "media" && selectedMedia?.type.startsWith("video") ? mediaPreview : undefined,
+          background_color: activeTab === "status" ? selectedColor : undefined,
+          poll_options: activeTab === "poll" ? pollOptions.filter((opt) => opt.trim() !== "") : undefined,
+          likes_count: 0,
+          comments_count: 0,
+          shares_count: 0,
+          is_premium_content: false,
+          updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          location
+        })
+
+      if (insertError) {
+        console.error("Erro ao inserir post:", insertError)
+        // Notificação de erro específica
+        const errorEvent = new CustomEvent("showNotification", {
+          detail: {
+            type: "error",
+            title: "Erro ao Publicar! ❌",
+            message: insertError ? insertError : "Ocorreu um erro ao publicar seu post. Tente novamente.",
+          },
+        })
+        window.dispatchEvent(errorEvent)
+        }
+
 
       // Carregar posts existentes
       const savedPosts = JSON.parse(localStorage.getItem("userPosts") || "[]")
@@ -262,7 +300,7 @@ export default function CreatePost({ onClose, className, onPostCreated }: Create
       console.log("Post salvo:", newPost)
 
       // Adicionar 1 fitcoin por fazer uma publicação
-      addFitcoin(1)
+      addFitcoin(user, 1)
 
       // Disparar evento para notificação de fitcoin
       const fitcoinEvent = new CustomEvent("showFitcoinNotification", {
@@ -345,8 +383,8 @@ export default function CreatePost({ onClose, className, onPostCreated }: Create
             />
           </Avatar>
           <div>
-            <p className="font-medium text-foreground">João Silva</p>
-            <p className="text-xs text-muted-foreground">@joao.fitness</p>
+            <p className="font-medium text-foreground">{profile?.full_name}</p>
+            <p className="text-xs text-muted-foreground">@{profile?.username}</p>
           </div>
         </div>
 

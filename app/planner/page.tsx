@@ -22,8 +22,10 @@ import {
   Clock,
 } from "lucide-react"
 import AppLayout from "@/components/app-layout"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useFitcoin } from "@/hooks/use-fitcoin"
+import { supabase } from "@/lib/supabase"
+import { useUser } from "@supabase/auth-helpers-react"
 
 interface MealItem {
   id: number
@@ -83,6 +85,10 @@ export default function PlannerPage() {
     message: string
   }>({ show: false, type: "success", title: "", message: "" })
 
+  const [date, setDate] = useState<string>(() => new Date().toISOString().split("T")[0])
+  const user = useUser();
+
+
   // Estados para desafios
   const [challenges, setChallenges] = useState<Challenge[]>([
     {
@@ -105,33 +111,106 @@ export default function PlannerPage() {
     },
   ])
 
-  // Estados para refeições
-  const [meals, setMeals] = useState<MealItem[]>([
-    { id: 1, meal: "Café da Manhã", food: "Aveia com frutas", completed: false },
-    { id: 2, meal: "Almoço", food: "Frango grelhado com salada", completed: false },
-    { id: 3, meal: "Café da Tarde", food: "Iogurte com granola", completed: false },
-    { id: 4, meal: "Jantar", food: "Peixe com legumes", completed: false },
-    { id: 5, meal: "Lanche", food: "Castanhas", completed: false },
-  ])
+  // Seus estados
+  const [meals, setMeals] = useState<MealItem[]>([])
+  const [workouts, setWorkouts] = useState<WorkoutItem[]>([])
+  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([])
+  const [dailyGoals, setDailyGoals] = useState<DailyGoal[]>([])
 
-  // Estados para treinos
-  const [workouts, setWorkouts] = useState<WorkoutItem[]>([
-    { id: 1, type: "Musculação", name: "Treino de Peito", time: "07:00", completed: false },
-    { id: 2, type: "Cardio", name: "Corrida", time: "18:00", completed: false },
-  ])
+  const fetchData = async () => {
 
-  // Estados para lista de compras
-  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([
-    { id: 1, item: "Proteína em pó", checked: false },
-    { id: 2, item: "Frutas vermelhas", checked: false },
-    { id: 3, item: "Aveia", checked: false },
-  ])
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      
 
-  // Estados para metas diárias
-  const [dailyGoals, setDailyGoals] = useState<DailyGoal[]>([
-    { id: 1, goal: "Meditar 10 minutos", checked: false },
-    { id: 2, goal: "Dormir 8 horas", checked: false },
-  ])
+      // 1) Meals
+      const { data: mealsData } = await supabase
+        .from("planner_meals")
+        .select("*")
+        .eq("user_id", user.id)
+
+      const { data: mealsCheck } = await supabase
+        .from("planner_meals_check")
+        .select("*")
+        .in("planner_meals_id", mealsData?.map(m => m.id) || [])
+        .eq("date", date)
+
+      const mergedMeals = mealsData?.map(m => ({
+        id: m.id,
+        meal: m.meal_name,
+        food: m.food_description,
+        completed: mealsCheck?.find(c => c.planner_meals_id === m.id)?.is_completed || false
+      })) || []
+
+      setMeals(mergedMeals)
+
+      // 2) Workouts
+      const { data: workoutsData } = await supabase
+        .from("planner_workouts")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("date", date)
+
+      const { data: workoutsCheck } = await supabase
+        .from("planner_workouts_check")
+        .select("*")
+        .in("planner_workouts_id", workoutsData?.map(w => w.id) || [])
+        .eq("date", date)
+
+      const mergedWorkouts = workoutsData?.map(w => ({
+        id: w.id,
+        name: w.workout_name,
+        type: w.workout_type,
+        time: w.scheduled_time,
+        completed: workoutsCheck?.find(c => c.planner_workouts_id === w.id)?.is_completed || false
+      })) || []
+
+      setWorkouts(mergedWorkouts)
+
+      // 3) Shopping
+      const { data: shoppingData } = await supabase
+        .from("planner_shopping")
+        .select("*")
+        .eq("user_id", user.id)
+
+      const { data: shoppingCheck } = await supabase
+        .from("planner_shopping_check")
+        .select("*")
+        .in("planner_shopping_id", shoppingData?.map(s => s.id) || [])
+        .eq("date", date)
+
+      const mergedShopping = shoppingData?.map(s => ({
+        id: s.id,
+        item: s.item_name,
+        checked: shoppingCheck?.find(c => c.planner_shopping_id === s.id)?.is_checked || false
+      })) || []
+
+      setShoppingList(mergedShopping)
+
+      // 4) Daily Goals
+      const { data: goalsData } = await supabase
+        .from("planner_goals")
+        .select("*")
+        .eq("user_id", user.id)
+
+      const { data: goalsCheck } = await supabase
+        .from("planner_goals_check")
+        .select("*")
+        .in("goals_planner_id", goalsData?.map(g => g.id) || [])
+        .eq("date", date)
+
+      const mergedGoals = goalsData?.map(g => ({
+        id: g.id,
+        goal: g.goal_description,
+        checked: goalsCheck?.find(c => c.goals_planner_id === g.id)?.is_completed || false
+      })) || []
+
+      setDailyGoals(mergedGoals)
+    }
+
+  useEffect(() => {
+    fetchData()
+  }, [date])
 
   // Estados para edição
   const [editingMeal, setEditingMeal] = useState<number | null>(null)
@@ -176,7 +255,7 @@ export default function PlannerPage() {
 
     if (newIntake >= waterGoal && waterIntake < waterGoal) {
       setShowWaterCelebration(true)
-      addFitcoin(1)
+      addFitcoin(1, user)
       showNotification("fitcoin", "Meta de Água Concluída! 💧", "Você ganhou 1 Fitcoin por manter-se hidratado!")
       setTimeout(() => setShowWaterCelebration(false), 3000)
     }
@@ -204,7 +283,7 @@ export default function PlannerPage() {
           const now = new Date().toISOString()
 
           if (isCompleted) {
-            addFitcoin(1)
+            addFitcoin(1, user)
             showNotification("challenge", "Desafio Concluído! 🏆", "Parabéns! Você ganhou 1 Fitcoin!")
 
             // Remove o desafio após 2 segundos
@@ -227,120 +306,214 @@ export default function PlannerPage() {
     )
   }
 
-  // Funções para refeições
-  const toggleMeal = (id: number) => {
-    setMeals((prev) => prev.map((meal) => (meal.id === id ? { ...meal, completed: !meal.completed } : meal)))
-  }
+  // -------------------------
+// 🥗 Funções para refeições
+// -------------------------
 
-  const addMeal = () => {
-    if (newItemText.trim()) {
-      const newMeal: MealItem = {
-        id: Date.now(),
-        meal: newItemText,
-        food: "Escolha o alimento",
-        completed: false,
-      }
-      setMeals((prev) => [...prev, newMeal])
+const toggleMeal = async (id: string) => {
+  const completed = !meals.find(m => m.id === id)?.completed
+  setMeals(prev => prev.map(m => m.id === id ? { ...m, completed } : m))
+
+  await supabase.from("planner_meals_check").upsert({
+    planner_meals_id: id,
+    date: date,
+    is_completed: completed,
+  }, { onConflict: ["planner_meals_id", "date"] })
+}
+
+const addMeal = async () => {
+  if (newItemText.trim()) {
+    const { data, error } = await supabase.from("planner_meals").insert({
+      user_id: user.id,
+      meal_name: newItemText,
+      food_description: "Escolha o alimento"
+    }).select().single()
+
+    if (!error && data) {
+      setMeals(prev => [...prev, {
+        id: data.id,
+        meal: data.meal_name,
+        food: data.food_description,
+        completed: false
+      }])
       setNewItemText("")
     }
   }
+}
 
-  const updateMeal = (id: number, food: string) => {
-    setMeals((prev) => prev.map((meal) => (meal.id === id ? { ...meal, food } : meal)))
-    setEditingMeal(null)
-  }
+const updateMeal = async (id: string, food: string) => {
+  await supabase.from("planner_meals").update({
+    food_description: food
+  }).eq("id", id)
 
-  const deleteMeal = (id: number) => {
-    setMeals((prev) => prev.filter((meal) => meal.id !== id))
-  }
+  setMeals(prev => prev.map(m => m.id === id ? { ...m, food } : m))
+  setEditingMeal(null)
+}
 
-  // Funções para treinos
-  const toggleWorkout = (id: number) => {
-    setWorkouts((prev) =>
-      prev.map((workout) => (workout.id === id ? { ...workout, completed: !workout.completed } : workout)),
-    )
-  }
+const deleteMeal = async (id: string) => {
+  await supabase.from("planner_meals").delete().eq("id", id)
+  setMeals(prev => prev.filter(m => m.id !== id))
+}
 
-  const addWorkout = () => {
-    if (newItemText.trim()) {
-      const newWorkout: WorkoutItem = {
-        id: Date.now(),
-        type: "Exercício",
-        name: newItemText,
-        time: "08:00",
-        completed: false,
-      }
-      setWorkouts((prev) => [...prev, newWorkout])
+// -------------------------
+// 🏋️ Funções para treinos
+// -------------------------
+
+const toggleWorkout = async (id: string) => {
+  const completed = !workouts.find(w => w.id === id)?.completed
+  setWorkouts(prev => prev.map(w => w.id === id ? { ...w, completed } : w))
+
+  await supabase.from("planner_workouts_check").upsert({
+    planner_workouts_id: id,
+    date: date,
+    is_completed: completed
+  }, { onConflict: ["planner_workouts_id", "date"] })
+}
+
+const addWorkout = async () => {
+  if (newItemText.trim()) {
+    const { data, error } = await supabase.from("planner_workouts").insert({
+      user_id: user.id,
+      workout_name: newItemText,
+      workout_type: "Exercício",
+      scheduled_time: "08:00",
+      date: date
+    }).select().single()
+
+    if (!error && data) {
+      setWorkouts(prev => [...prev, {
+        id: data.id,
+        name: data.workout_name,
+        type: data.workout_type,
+        time: data.scheduled_time,
+        completed: false
+      }])
       setNewItemText("")
     }
   }
+}
 
-  const updateWorkout = (id: number, name: string) => {
-    setWorkouts((prev) => prev.map((workout) => (workout.id === id ? { ...workout, name } : workout)))
-    setEditingWorkout(null)
-  }
+const updateWorkout = async (id: string, name: string) => {
+  await supabase.from("planner_workouts").update({
+    workout_name: name
+  }).eq("id", id)
 
-  const updateWorkoutType = (id: number, type: string) => {
-    setWorkouts((prev) => prev.map((workout) => (workout.id === id ? { ...workout, type } : workout)))
-    setEditingWorkoutType(null)
-  }
+  setWorkouts(prev => prev.map(w => w.id === id ? { ...w, name } : w))
+  setEditingWorkout(null)
+}
 
-  const deleteWorkout = (id: number) => {
-    setWorkouts((prev) => prev.filter((workout) => workout.id !== id))
-  }
+const updateWorkoutType = async (id: string, type: string) => {
+  await supabase.from("planner_workouts").update({
+    workout_type: type
+  }).eq("id", id)
 
-  // Funções para lista de compras
-  const toggleShoppingItem = (id: number) => {
-    setShoppingList((prev) => prev.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item)))
-  }
+  setWorkouts(prev => prev.map(w => w.id === id ? { ...w, type } : w))
+  setEditingWorkoutType(null)
+}
 
-  const addShoppingItem = () => {
-    if (newItemText.trim()) {
-      const newItem: ShoppingItem = {
-        id: Date.now(),
-        item: newItemText,
-        checked: false,
-      }
-      setShoppingList((prev) => [...prev, newItem])
+const deleteWorkout = async (id: string) => {
+  await supabase.from("planner_workouts").delete().eq("id", id)
+  setWorkouts(prev => prev.filter(w => w.id !== id))
+}
+
+// -------------------------
+// 🛒 Funções para lista de compras
+// -------------------------
+
+const toggleShoppingItem = async (id: string) => {
+  const checked = !shoppingList.find(i => i.id === id)?.checked
+  setShoppingList(prev => prev.map(i => i.id === id ? { ...i, checked } : i))
+
+  await supabase.from("planner_shopping_check").upsert({
+    planner_shopping_id: id,
+    date: date,
+    is_checked: checked,
+  }, { onConflict: ["planner_shopping_id", "date"] })
+}
+
+const addShoppingItem = async () => {
+  if (newItemText.trim()) {
+    const { data, error } = await supabase.from("planner_shopping").insert({
+      user_id: user.id,
+      item_name: newItemText,
+    }).select().single()
+
+    if (!error && data) {
+      setShoppingList(prev => [...prev, {
+        id: data.id,
+        item: data.item_name,
+        checked: false
+      }])
       setNewItemText("")
     }
   }
+}
 
-  const updateShoppingItem = (id: number, item: string) => {
-    setShoppingList((prev) => prev.map((shopping) => (shopping.id === id ? { ...shopping, item } : shopping)))
-    setEditingShopping(null)
-  }
+const updateShoppingItem = async (id: string, item: string) => {
+  await supabase.from("planner_shopping").update({
+    item_name: item
+  }).eq("id", id)
 
-  const deleteShoppingItem = (id: number) => {
-    setShoppingList((prev) => prev.filter((item) => item.id !== id))
-  }
+  setShoppingList(prev => prev.map(s => s.id === id ? { ...s, item } : s))
+  setEditingShopping(null)
+}
 
-  // Funções para metas diárias
-  const toggleDailyGoal = (id: number) => {
-    setDailyGoals((prev) => prev.map((goal) => (goal.id === id ? { ...goal, checked: !goal.checked } : goal)))
-  }
+const deleteShoppingItem = async (id: string) => {
+  await supabase.from("planner_shopping").delete().eq("id", id)
+  setShoppingList(prev => prev.filter(i => i.id !== id))
+}
 
-  const addDailyGoal = () => {
-    if (newItemText.trim()) {
-      const newGoal: DailyGoal = {
-        id: Date.now(),
-        goal: newItemText,
-        checked: false,
-      }
-      setDailyGoals((prev) => [...prev, newGoal])
+// -------------------------
+// 🎯 Funções para metas diárias
+// -------------------------
+
+const toggleDailyGoal = async (id: string) => {
+  const checked = !dailyGoals.find(g => g.id === id)?.checked
+  setDailyGoals(prev => prev.map(g => g.id === id ? { ...g, checked } : g))
+
+  await supabase.from("planner_goals_check").upsert({
+    goals_planner_id: id,
+    date: date,
+    is_completed: checked,
+  }, { onConflict: ["goals_planner_id", "date"] })
+}
+
+const addDailyGoal = async () => {
+  if (newItemText.trim()) {
+    const { data, error } = await supabase.from("planner_goals").insert({
+      user_id: user.id,
+      goal_description: newItemText,
+    }).select().single()
+
+    if (!error && data) {
+      setDailyGoals(prev => [...prev, {
+        id: data.id,
+        goal: data.goal_description,
+        checked: false
+      }])
       setNewItemText("")
     }
   }
+}
 
-  const updateDailyGoal = (id: number, goal: string) => {
-    setDailyGoals((prev) => prev.map((dailyGoal) => (dailyGoal.id === id ? { ...dailyGoal, goal } : dailyGoal)))
-    setEditingGoal(null)
-  }
+const updateDailyGoal = async (id: string, goal: string) => {
+  await supabase.from("planner_goals").update({
+    goal_description: goal
+  }).eq("id", id)
 
-  const deleteDailyGoal = (id: number) => {
-    setDailyGoals((prev) => prev.filter((goal) => goal.id !== id))
-  }
+  setDailyGoals(prev => prev.map(g => g.id === id ? { ...g, goal } : g))
+  setEditingGoal(null)
+}
 
+const deleteDailyGoal = async (id: string) => {
+  await supabase.from("planner_goals").delete().eq("id", id)
+  setDailyGoals(prev => prev.filter(g => g.id !== id))
+}
+
+const changeDate = (date:Date) => {
+  setDate(date.toISOString().split("T")[0]);
+  fetchData();
+}
   return (
     <AppLayout>
       <div className="flex-1 p-4 pb-16 md:pb-4 md:pl-72 relative z-10">
@@ -421,6 +594,7 @@ export default function PlannerPage() {
                   <TabsTrigger
                     key={day}
                     value={day.toLowerCase()}
+                    onClick={() => changeDate(date)}
                     className={`data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500 data-[state=active]:to-blue-500 data-[state=active]:text-white rounded-full aspect-square p-2 md:p-3 transition-all duration-300 data-[state=active]:shadow-glow-purple bg-card/50 backdrop-blur-sm border border-border/50 hover:scale-105 w-16 h-16 md:w-14 md:h-14 ${
                       index === today ? "ring-2 ring-purple-500/50" : ""
                     }`}
@@ -434,8 +608,7 @@ export default function PlannerPage() {
               })}
             </TabsList>
 
-            {weekDays.map((day) => (
-              <TabsContent key={day} value={day.toLowerCase()} className="mt-0 space-y-6">
+              <div className="mt-0 space-y-6">
                 {/* Frase do Dia */}
                 <Card className="relative overflow-hidden bg-gradient-to-br from-purple-500/10 via-blue-500/10 to-pink-500/10 border border-purple-500/20 backdrop-blur-sm">
                   <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-blue-500/5"></div>
@@ -1082,8 +1255,7 @@ export default function PlannerPage() {
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
-            ))}
+              </div>
           </Tabs>
         </div>
       </div>

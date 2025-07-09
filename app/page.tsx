@@ -12,6 +12,9 @@ import CreatePostModal from "@/components/create-post-modal"
 import FitcoinNotification from "@/components/fitcoin-notification"
 import { useEffect, useState } from "react"
 import { Separator } from "@/components/ui/separator"
+import { useUser } from '@supabase/auth-helpers-react'
+import { supabase } from "@/lib/supabase"
+import { getUserProfile } from "@/lib/services/profileService"
 
 // Tipos para os posts
 interface Post {
@@ -23,7 +26,7 @@ interface Post {
   image?: string
   videoThumbnail?: string
   backgroundColor?: string
-  pollOptions?: string[]
+  pollOptions?: any
   likes: number
   comments: number
   shares: number
@@ -37,12 +40,83 @@ interface Post {
   externalLink?: string
   isPremiumContent?: boolean
   timestamp?: string
-  createdAt?: number
+  createdAt?: number;
+  user_liked: boolean;
+  already_like: boolean;
+  user_reposted: boolean;
+  location:string
+}
+
+interface SupabasePost {
+  likes: any
+  id: string
+  type: "text" | "photo" | "video" | "poll" | "challenge" | "ad"
+  user_id: string
+  content: string
+  image_url: string | null
+  video_url: string | null
+  background_color: string | null
+  poll_options: string[] | null
+  likes_count: number
+  comments_count: number
+  shares_count: number
+  is_premium_content: boolean
+  created_at: string
+  profiles?: {
+    avatar_url: string,
+    full_name:string,
+    is_verified?: boolean
+    is_admin?: boolean
+  },
+  already_like: boolean;
+  user_liked: boolean;
+  user_reposted: boolean;
+  location:string
+}
+
+function mapSupabaseToPost(data: SupabasePost): Post {
+  return {
+    id: data.id,
+    type: data.type,
+    user: data.profiles?.full_name || "",
+    avatar: data.profiles?.avatar_url || "",
+    content: data.content,
+    image: data.image_url || undefined,
+    videoThumbnail: data.video_url || undefined,
+    backgroundColor: data.background_color || undefined,
+    pollOptions: data.poll_options || undefined,
+    likes: data.likes_count,
+    comments: data.comments_count,
+    shares: data.shares_count,
+    isVerified: data.profiles?.is_verified,
+    isAdmin: data.profiles?.is_admin,
+    isPremiumContent: data.is_premium_content,
+    timestamp: data.created_at,
+    createdAt: new Date(data.created_at).getTime(),
+    user_liked: data.user_liked,
+    user_reposted: data.user_reposted,
+    location: data.location,
+    already_like: data.already_like
+  }
 }
 
 export default function HomePage() {
   const [isMobile, setIsMobile] = useState(false)
   const [userPosts, setUserPosts] = useState<Post[]>([])
+  const user = useUser();
+  const [forYouPosts, setForYou] = useState([])
+  // Posts da comunidade (usuários normais) + posts do usuário
+  const [communityPosts, setCommunityPosts] = useState([])
+  const [profile, setProfile] = useState<any>(null)
+  
+    useEffect(() => {
+      if (!user) return
+  
+      getUserProfile(user.id)
+        .then((data) => {setProfile(data);})
+        .catch((err) => console.error(err))
+    }, [user])
+
 
   // Detectar se é mobile
   useEffect(() => {
@@ -57,123 +131,6 @@ export default function HomePage() {
       window.removeEventListener("resize", checkIfMobile)
     }
   }, [])
-
-  // Carregar posts do usuário
-  useEffect(() => {
-    const loadUserPosts = () => {
-      const savedPosts = JSON.parse(localStorage.getItem("userPosts") || "[]")
-      setUserPosts(savedPosts)
-    }
-
-    loadUserPosts()
-
-    // Listener para reposts
-    const handleRepostCreated = (event) => {
-      loadUserPosts() // Recarregar posts quando um repost for criado
-    }
-
-    window.addEventListener("repostCreated", handleRepostCreated)
-
-    return () => {
-      window.removeEventListener("repostCreated", handleRepostCreated)
-    }
-  }, [])
-
-  // Função para recarregar posts quando um novo é criado
-  const handlePostCreated = () => {
-    const savedPosts = JSON.parse(localStorage.getItem("userPosts") || "[]")
-    setUserPosts(savedPosts)
-  }
-
-  // Posts de administradores
-  const adminPosts: Post[] = [
-    {
-      type: "challenge",
-      user: "BBfitness",
-      avatar: "/placeholder.svg?height=40&width=40",
-      content: "💪 Desafio da semana: 30 minutos de cardio por dia! Quem está dentro? #BBChallenge",
-      image: "/placeholder.svg?height=300&width=500",
-      likes: 245,
-      comments: 32,
-      shares: 18,
-      isVerified: true,
-      isAdmin: true,
-    },
-    {
-      type: "text",
-      user: "Coach Amanda",
-      avatar: "/placeholder.svg?height=40&width=40",
-      content:
-        "🥗 Dica do dia: Substitua carboidratos refinados por opções integrais para mais energia durante o treino! #NutriçãoEsportiva",
-      backgroundColor: "from-purple-600 to-blue-600",
-      likes: 178,
-      comments: 24,
-      shares: 12,
-      isVerified: true,
-      isAdmin: true,
-    },
-    {
-      type: "video",
-      user: "BBfitness",
-      avatar: "/placeholder.svg?height=40&width=40",
-      content: "🏋️‍♀️ Novo treino de HIIT disponível na área premium! Apenas 15 minutos e resultados incríveis!",
-      videoThumbnail: "/placeholder.svg?height=300&width=500",
-      likes: 312,
-      comments: 47,
-      shares: 28,
-      isVerified: true,
-      isAdmin: true,
-    },
-  ]
-
-  // Posts da comunidade (usuários normais) + posts do usuário
-  const communityPosts: Post[] = [
-    ...userPosts, // Posts do usuário aparecem primeiro
-    {
-      type: "photo",
-      user: "maria.fitness",
-      avatar: "/placeholder.svg?height=40&width=40",
-      content: "Completei 30 dias de desafio! Muito orgulhosa da minha evolução 💯",
-      image: "/placeholder.svg?height=300&width=500",
-      likes: 89,
-      comments: 14,
-      shares: 5,
-      isAdmin: false,
-    },
-    {
-      type: "poll",
-      user: "carlos_runner",
-      avatar: "/placeholder.svg?height=40&width=40",
-      content: "Qual o melhor horário para treinar?",
-      pollOptions: ["Manhã cedo", "Hora do almoço", "Fim da tarde", "Noite"],
-      likes: 56,
-      comments: 23,
-      shares: 8,
-      isAdmin: false,
-    },
-    {
-      type: "text",
-      user: "fit.julia",
-      avatar: "/placeholder.svg?height=40&width=40",
-      content: "🎯 Meta batida! 10km em menos de 50 minutos! Quem mais está treinando para corrida?",
-      backgroundColor: "from-orange-500 to-red-500",
-      likes: 134,
-      comments: 28,
-      shares: 15,
-      isAdmin: false,
-    },
-    {
-      type: "photo",
-      user: "ana.strong",
-      avatar: "/placeholder.svg?height=40&width=40",
-      content: "Primeiro mês de academia concluído! Já sinto a diferença na disposição 💪",
-      image: "/placeholder.svg?height=300&width=500",
-      likes: 156,
-      comments: 34,
-      shares: 11,
-      isAdmin: false,
-    },
-  ]
 
   // Anúncios
   const ads: Post[] = [
@@ -194,44 +151,111 @@ export default function HomePage() {
       discount: "-50%",
       externalLink: "https://bbfitness.com/ebook-transformacao",
       isAdmin: true,
+      user_liked: false,
+      user_reposted: false,
+      location: "",
+      already_like: true
     },
-    {
-      type: "ad",
-      user: "Personal Trainer Pro",
-      avatar: "/placeholder.svg?height=40&width=40",
-      content: "💪 TREINO HIIT AVANÇADO: 20 minutos de treino intenso para queimar gordura e definir músculos!",
-      image: "/placeholder.svg?height=300&width=500",
-      likes: 1456,
-      comments: 234,
-      shares: 78,
-      isVerified: true,
-      adType: "treino",
-      isPremiumContent: true,
-      isAdmin: true,
-    },
-  ]
+    ]
 
   // Função para intercalar posts com anúncios no mobile
   const getIntercalatedPosts = (posts: Post[], includeAds = true) => {
-    if (!isMobile || !includeAds) return posts
+    // if (!isMobile || !includeAds) return posts
 
     const result: Post[] = []
     const adInterval = 3 // A cada 3 posts, inserir um anúncio
 
     posts.forEach((post, index) => {
       result.push(post)
+      
       if (includeAds && (index + 1) % adInterval === 0 && ads[Math.floor(index / adInterval) % ads.length]) {
-        result.push(ads[Math.floor(index / adInterval) % ads.length])
+        
+        result.push(ads[0])
       }
     })
 
     return result
   }
 
-  // Preparar os posts para cada aba
-  const forYouPosts = getIntercalatedPosts(adminPosts)
-  const communityPosts2 = getIntercalatedPosts(communityPosts)
+  const loadUserPosts = async () => {
+      const { data, error } = await supabase
+      .from("posts")
+      .select(`
+        *,
+        profiles (
+          avatar_url,
+          full_name
+        ),
+        likes (
+          user_id,
+          like
+        ),
+        post_reposts (
+          user_id
+        )
+      `);
 
+    const posts = data.map(post => {
+      const userLiked = post.likes.some((like:any) => like.user_id === user.id && like.like);
+      const userReposted = post.post_reposts.some((repost:any) => repost.user_id === user.id);
+      const userAlreadyLiked = post.likes.some((like:any) => like.user_id === user.id);
+      return {
+        ...post,
+        user_liked: userLiked,
+        user_reposted: userReposted,
+        already_like: userAlreadyLiked
+      };
+    });
+
+    if (error) {
+      console.error("Erro ao buscar posts com perfil:", error)
+    } else {
+      console.log("Posts com perfil completo:", data)
+    }
+    const _posts:any = posts || [];
+
+      const all_posts = _posts.map((v:any) => mapSupabaseToPost(v)) || [];
+      if(user){
+      const user_post = all_posts.filter((p:any) => p.user_id == user.id)
+      setUserPosts(user_post)
+      }
+      
+      const foryou:any = getIntercalatedPosts(all_posts.filter((p:any) => p.location == "foryou" ), true)
+      const community:any = getIntercalatedPosts(all_posts.filter((p:any) => p.location == "community" ))
+      setCommunityPosts(community)
+      setForYou(foryou)
+      
+    }
+
+  // Carregar posts do usuário
+  useEffect(() => {
+    
+
+    loadUserPosts()
+
+    // Listener para reposts
+    const handleRepostCreated = (event:any) => {
+      loadUserPosts() // Recarregar posts quando um repost for criado
+    }
+
+    window.addEventListener("repostCreated", handleRepostCreated)
+
+    return () => {
+      window.removeEventListener("repostCreated", handleRepostCreated)
+    }
+  }, [user])
+
+  // Função para recarregar posts quando um novo é criado
+  const handlePostCreated = () => {
+    loadUserPosts();
+  }
+
+
+  
+
+  
+
+  if(user == null) return 0;
   return (
     <AppLayout>
       {/* Notificação de Fitcoin */}
@@ -273,9 +297,10 @@ export default function HomePage() {
 
               {/* Conteúdo das abas */}
               <TabsContent value="for-you" className="mt-0 space-y-4 w-full">
-                {forYouPosts.map((post, index) => (
+                {forYouPosts.map((post:any, index) => (
                   <div key={`for-you-${index}`}>
                     <FeedPost
+                      _reposted={post.user_reposted}
                       type={post.type}
                       user={post.user}
                       avatar={post.avatar}
@@ -297,6 +322,9 @@ export default function HomePage() {
                       isPremiumContent={post.isPremiumContent}
                       timestamp={post.timestamp}
                       originalPost={post.originalPost}
+                      _liked={post.user_liked}
+                      alreadyLiked={post.already_like}
+                      postId={post.id}
                       onPostCreated={handlePostCreated}
                     />
                     {index < forYouPosts.length - 1 && <Separator className="my-2 opacity-50" />}
@@ -307,12 +335,13 @@ export default function HomePage() {
               <TabsContent value="community" className="mt-0 space-y-4 w-full">
                 {/* Componente de criação de post apenas na aba Comunidade */}
                 <div className="mb-4">
-                  <CreatePost onPostCreated={handlePostCreated} />
+                  <CreatePost profile={profile} location="community" onPostCreated={handlePostCreated} />
                 </div>
 
-                {communityPosts2.map((post, index) => (
+                {communityPosts.map((post:any, index) => (
                   <div key={`community-${post.id || index}`}>
                     <FeedPost
+                    _reposted={post.user_reposted}
                       type={post.type}
                       user={post.user}
                       avatar={post.avatar}
@@ -334,9 +363,12 @@ export default function HomePage() {
                       isPremiumContent={post.isPremiumContent}
                       timestamp={post.timestamp}
                       originalPost={post.originalPost}
+                      _liked={post.user_liked}
+                      postId={post.id}
+                      alreadyLiked={post.already_like}
                       onPostCreated={handlePostCreated}
                     />
-                    {index < communityPosts2.length - 1 && <Separator className="my-2 opacity-50" />}
+                    {index < communityPosts.length - 1 && <Separator className="my-2 opacity-50" />}
                   </div>
                 ))}
               </TabsContent>
@@ -347,7 +379,7 @@ export default function HomePage() {
           <div className="hidden lg:block w-80 space-y-4">
             <div className="sticky top-24">
               <div className="mb-4 ml-6">
-                <CreatePostModal />
+                <CreatePostModal profile={profile} />
               </div>
 
               <h3 className="font-semibold mb-4 text-foreground text-lg ml-6">Em destaque</h3>

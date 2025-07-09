@@ -25,6 +25,8 @@ import { useToast } from "@/components/ui/use-toast"
 import { useFitcoin } from "@/hooks/use-fitcoin"
 import CommentsModal from "@/components/comments-modal"
 import { formatRelativeTime } from "@/lib/utils"
+import { useUser } from "@supabase/auth-helpers-react"
+import { supabase } from "@/lib/supabase"
 
 interface FeedPostProps {
   type: "text" | "photo" | "video" | "poll" | "challenge" | "ad" | "status" | "repost"
@@ -34,7 +36,7 @@ interface FeedPostProps {
   image?: string
   videoThumbnail?: string
   backgroundColor?: string
-  pollOptions?: string[]
+  pollOptions?: any
   likes: number
   comments: number
   shares: number
@@ -50,6 +52,10 @@ interface FeedPostProps {
   repostedBy?: string
   timestamp?: string
   originalPost?: any
+  postId:any
+  _liked:any
+  alreadyLiked:any
+  _reposted:any
   onPostCreated?: () => void // Adicionar esta linha
 }
 
@@ -77,21 +83,21 @@ export default function FeedPost({
   repostedBy,
   timestamp,
   originalPost,
+  postId,
+  _liked,
+  _reposted,
+  alreadyLiked,
   onPostCreated, // Adicionar esta linha
 }: FeedPostProps) {
   const router = useRouter()
   const { toast } = useToast()
   const { addFitcoin } = useFitcoin()
-
-  // Gerar ID único para o post baseado no conteúdo
-  const postId = useMemo(() => {
-    return `${user}-${content.substring(0, 20).replace(/\s/g, "")}-${type}`
-  }, [user, content, type])
-
+  const User = useUser();
+  
   // Estados locais
-  const [liked, setLiked] = useState(false)
+  const [liked, setLiked] = useState(_liked)
   const [likeCount, setLikeCount] = useState(likes)
-  const [reposted, setReposted] = useState(false)
+  const [reposted, setReposted] = useState(_reposted)
   const [repostCount, setRepostCount] = useState(shares)
   const [commentCount, setCommentCount] = useState(comments)
   const [selectedPollOption, setSelectedPollOption] = useState<number | null>(null)
@@ -103,22 +109,6 @@ export default function FeedPost({
   useEffect(() => {
     const currentUser = localStorage.getItem("currentUser") || "user"
 
-    // Carregar curtidas
-    const savedLikes = JSON.parse(localStorage.getItem("postLikes") || "{}")
-    const postLikes = savedLikes[postId] || { users: [], count: likes }
-    setLiked(postLikes.users.includes(currentUser))
-    setLikeCount(postLikes.count)
-
-    // Carregar reposts
-    const savedReposts = JSON.parse(localStorage.getItem("postReposts") || "{}")
-    const postReposts = savedReposts[postId] || { users: [], count: shares }
-    setReposted(postReposts.users.includes(currentUser))
-    setRepostCount(postReposts.count)
-
-    // Carregar comentários
-    const savedComments = JSON.parse(localStorage.getItem("postComments") || "{}")
-    const postComments = savedComments[postId] || []
-    setCommentCount(postComments.length)
 
     // Carregar resultados de enquete
     if (type === "poll" && pollOptions) {
@@ -159,26 +149,7 @@ export default function FeedPost({
     return results
   }
 
-  // Salvar curtidas
-  const saveLikes = (newLiked: boolean, newCount: number) => {
-    const currentUser = localStorage.getItem("currentUser") || "user"
-    const savedLikes = JSON.parse(localStorage.getItem("postLikes") || "{}")
 
-    if (!savedLikes[postId]) {
-      savedLikes[postId] = { users: [], count: likes }
-    }
-
-    if (newLiked) {
-      if (!savedLikes[postId].users.includes(currentUser)) {
-        savedLikes[postId].users.push(currentUser)
-      }
-    } else {
-      savedLikes[postId].users = savedLikes[postId].users.filter((u: string) => u !== currentUser)
-    }
-
-    savedLikes[postId].count = newCount
-    localStorage.setItem("postLikes", JSON.stringify(savedLikes))
-  }
 
   // Salvar reposts
   const saveReposts = (newReposted: boolean, newCount: number) => {
@@ -208,20 +179,46 @@ export default function FeedPost({
     localStorage.setItem("pollResults", JSON.stringify(savedPolls))
   }
 
-  const handleLike = () => {
+  const handleLike = async () => {
     const newLiked = !liked
     const newCount = newLiked ? likeCount + 1 : likeCount - 1
-
+    
     setLiked(newLiked)
     setLikeCount(newCount)
-    saveLikes(newLiked, newCount)
+    //saveLikes(newLiked, newCount)
 
     if (newLiked) {
-      addFitcoin(1)
+      if(!alreadyLiked){
+        const { data, error } = await supabase
+        .from("likes")
+        .insert({user_id:User?.id, post_id:postId});
+        addFitcoin(User, 1)
+      }else{
+        const { data, error } = await supabase
+        .from("likes")
+        .update({like:true})
+        .eq('user_id', User?.id)
+        .eq('post_id', postId);
+        await supabase
+        .from("posts")
+        .update({likes_count:newCount})
+        .eq('id', postId);
+        }
+    }else{
+      const { data, error } = await supabase
+      .from("likes")
+      .update({like:false})
+      .eq('user_id', User?.id)
+      .eq('post_id', postId);
+
+      await supabase
+      .from("posts")
+      .update({likes_count:newCount})
+      .eq('id', postId);
     }
   }
 
-  const handleRepost = () => {
+  const handleRepost = async () => {
     if (!reposted) {
       const currentUser = localStorage.getItem("currentUser") || "João Silva"
 
@@ -261,17 +258,16 @@ export default function FeedPost({
         },
       }
 
-      // Salvar nos posts do usuário
-      const savedPosts = JSON.parse(localStorage.getItem("userPosts") || "[]")
-      const updatedPosts = [repostData, ...savedPosts]
-      localStorage.setItem("userPosts", JSON.stringify(updatedPosts))
+      const { data, error } = await supabase
+        .from("post_reposts")
+        .insert({user_id:User?.id, post_id:postId});
 
       // Atualizar contadores locais
       const newCount = repostCount + 1
       setRepostCount(newCount)
       setReposted(true)
       saveReposts(true, newCount)
-      addFitcoin(1)
+      addFitcoin(User, 1)
 
       // Disparar evento customizado para atualizar o feed
       const event = new CustomEvent("repostCreated", {
@@ -304,14 +300,14 @@ export default function FeedPost({
       newResults[index] += 1
       setPollResults(newResults)
       savePollResults(newResults, index)
-      addFitcoin(1)
+      addFitcoin(User, 1)
     }
   }
 
   const handleJoinChallenge = () => {
     if (!joined) {
       setJoined(true)
-      addFitcoin(1)
+      addFitcoin(User, 1)
 
       toast({
         title: "Desafio Adicionado! 🎯",
@@ -334,7 +330,7 @@ export default function FeedPost({
   const handleCommentAdded = () => {
     const newCount = commentCount + 1
     setCommentCount(newCount)
-    addFitcoin(1) // Ganhar Fitcoin por comentar
+    addFitcoin(User, 1) // Ganhar Fitcoin por comentar
   }
 
   const totalPollVotes = pollResults.reduce((acc, curr) => acc + curr, 0)
@@ -404,7 +400,7 @@ export default function FeedPost({
           <div className="px-4 mb-3">
             <p className="mb-4 whitespace-pre-line">{content}</p>
             <div className="space-y-2">
-              {pollOptions?.map((option, index) => {
+              {pollOptions?.map((option:any, index:any) => {
                 const votes = pollResults[index] || 0
                 const percentage = totalPollVotes > 0 ? (votes / totalPollVotes) * 100 : 0
                 const isSelected = selectedPollOption === index
@@ -441,7 +437,7 @@ export default function FeedPost({
                 <div className="bg-white/20 p-1 rounded">
                   <CheckCircle className="w-4 h-4" />
                 </div>
-                <span className="text-sm font-medium">DESAFIO FITNESS</span>
+                <span className="text-sm font-medium">{pollOptions?.title}</span>
               </div>
               <p className="font-bold text-lg mb-2">{content}</p>
               <Button
@@ -642,9 +638,7 @@ export default function FeedPost({
         isOpen={showComments}
         onClose={() => setShowComments(false)}
         postId={postId}
-        postUser={user}
-        postContent={content}
-        postImage={image}
+        user={User}
         onCommentAdded={handleCommentAdded}
       />
     </>

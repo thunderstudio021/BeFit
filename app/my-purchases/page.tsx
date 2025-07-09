@@ -21,6 +21,8 @@ import Image from "next/image"
 import Link from "next/link"
 import BottomNavigation from "@/components/bottom-navigation"
 import FitcoinCounter from "@/components/fitcoin-counter"
+import { supabase } from "@/lib/supabase"
+import { useUser } from "@supabase/auth-helpers-react"
 
 interface Purchase {
   id: string
@@ -45,6 +47,7 @@ const getStoredPurchases = (): Purchase[] => {
   return storedPurchases ? JSON.parse(storedPurchases) : []
 }
 
+
 // Função para salvar compras no localStorage
 const storePurchases = (purchases: Purchase[]) => {
   if (typeof window !== "undefined") {
@@ -53,98 +56,64 @@ const storePurchases = (purchases: Purchase[]) => {
 }
 
 export default function MyPurchasesPage() {
-  const [purchases, setPurchases] = useState<Purchase[]>([
-    {
-      id: "1",
-      title: "E-book: Transformação 30 Dias",
-      type: "ebook",
-      image: "/placeholder.svg?height=200&width=150",
-      purchaseDate: "2024-01-15",
-      price: 750,
-      currency: "fitcoin",
-      status: "completed",
-      downloadUrl: "/downloads/ebook-transformacao.pdf",
-      fileSize: "2.5 MB",
-      format: "PDF",
-      description: "Guia completo para transformação corporal em 30 dias",
-    },
-    {
-      id: "2",
-      title: "Plano de Treino Personalizado",
-      type: "ebook",
-      image: "/placeholder.svg?height=200&width=150",
-      purchaseDate: "2024-01-10",
-      price: 1000,
-      currency: "fitcoin",
-      status: "completed",
-      downloadUrl: "/downloads/plano-treino.pdf",
-      fileSize: "1.8 MB",
-      format: "PDF",
-      description: "Treinos personalizados para seus objetivos",
-    },
-    {
-      id: "3",
-      title: "Curso: Nutrição Esportiva",
-      type: "video",
-      image: "/placeholder.svg?height=200&width=150",
-      purchaseDate: "2024-01-08",
-      price: 29.9,
-      currency: "real",
-      status: "completed",
-      downloadUrl: "/downloads/curso-nutricao.zip",
-      fileSize: "850 MB",
-      format: "MP4",
-      description: "Curso completo sobre nutrição para atletas",
-    },
-    {
-      id: "4",
-      title: "Pack Receitas Fitness",
-      type: "ebook",
-      image: "/placeholder.svg?height=200&width=150",
-      purchaseDate: "2024-01-05",
-      price: 400,
-      currency: "fitcoin",
-      status: "processing",
-      fileSize: "3.2 MB",
-      format: "PDF",
-      description: "50 receitas saudáveis para sua dieta",
-    },
-    {
-      id: "5",
-      title: "Meditações Guiadas",
-      type: "audio",
-      image: "/placeholder.svg?height=200&width=150",
-      purchaseDate: "2024-01-03",
-      price: 300,
-      currency: "fitcoin",
-      status: "completed",
-      downloadUrl: "/downloads/meditacoes.zip",
-      fileSize: "120 MB",
-      format: "MP3",
-      description: "Sessões de meditação para relaxamento",
-    },
-  ])
+  const [purchases, setPurchases] = useState<Purchase[]>([])
+  const [completedPurchases, setCompletedPurchases] = useState<Purchase[]>([])
+  const [processingPurchases, setProcessingPurchases] = useState<Purchase[]>([])
+  
+  const user = useUser();
+   useEffect(() => {
+    if (!user) return
 
-  // Carregar compras do localStorage ao iniciar
-  useEffect(() => {
-    const storedPurchases = getStoredPurchases()
-    if (storedPurchases.length > 0) {
-      setPurchases((prev) => {
-        // Combinar compras existentes com as armazenadas, evitando duplicatas
-        const existingIds = new Set(prev.map((p) => p.id))
-        const newPurchases = storedPurchases.filter((p) => !existingIds.has(p.id))
-        return [...prev, ...newPurchases]
-      })
-    } else {
-      // Se não houver compras armazenadas, salvar as iniciais
-      storePurchases(purchases)
+    const fetchPurchases = async () => {
+
+      const { data, error } = await supabase
+        .from("purchases")
+        .select(`
+          id,
+          price_paid,
+          currency,
+          status,
+          created_at,
+          products (
+            id,
+            name,
+            description,
+            image_url,
+            file_url,
+            external_link,
+            category
+          )
+        `)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Erro ao carregar compras:", error)
+        return
+      }
+
+      const formatted: Purchase[] = data.map((purchase: any) => ({
+        id: purchase.id,
+        title: purchase.products?.name ?? "Produto",
+        type: purchase.products?.category ?? "digital",
+        image: purchase.products?.image_url ?? "",
+        purchaseDate: new Date(purchase.created_at).toISOString().split("T")[0],
+        price: Number(purchase.price_paid),
+        currency: purchase.currency,
+        status: purchase.status,
+        downloadUrl: purchase.products?.file_url ?? purchase.products?.external_link ?? undefined,
+        fileSize: undefined, // Se não tem coluna file_size
+        format: undefined,   // Se não tem coluna format
+        description: purchase.products?.description ?? undefined,
+      }))
+
+      setCompletedPurchases(formatted.filter((p) => p.status === "completed"))
+      setProcessingPurchases(formatted.filter((p) => p.status === "processing"))
+      setPurchases(formatted)
     }
-  }, [])
 
-  // Salvar compras no localStorage quando mudar
-  useEffect(() => {
-    storePurchases(purchases)
-  }, [purchases])
+    fetchPurchases()
+  }, [user])
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -198,8 +167,6 @@ export default function MyPurchasesPage() {
     }
   }
 
-  const completedPurchases = purchases.filter((p) => p.status === "completed")
-  const processingPurchases = purchases.filter((p) => p.status === "processing")
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-16 relative">

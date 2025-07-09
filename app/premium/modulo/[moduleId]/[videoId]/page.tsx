@@ -15,7 +15,9 @@ function formatDuration(seconds:any) {
   return `${m}:${s}`
 }
 
-export default function ModulePage({ params }: { params: { moduleId: string } }) {
+export default function ModulePage({ params }: { params: {
+    videoId: string, moduleId: string 
+} }) {
   const { isDark } = useTheme()
   const [isPlaying, setIsPlaying] = useState(false)
   const [showCountdown, setShowCountdown] = useState(false)
@@ -68,6 +70,7 @@ function displayVideo(base64DataUrl: string) {
 useEffect(() => {
   const fetchModuleData = async () => {
     const moduleId = params.moduleId
+    const videoId = params.videoId
 
     const { data: module, error: moduleError } = await supabase
       .from("premium_modules")
@@ -117,10 +120,10 @@ useEffect(() => {
     }
 
     setModuleData(formattedModule);
-    displayVideo(formattedModule.lessons[0].videoUrl)
+    displayVideo(formattedModule.lessons[parseInt(videoId)].videoUrl)
     console.log('formattedModule',formattedModule);
     console.log('formattedModule',formattedModule);
-    setCurrentLesson(formattedModule.lessons[0])
+    setCurrentLesson(formattedModule.lessons[parseInt(videoId)])
   }
 
   fetchModuleData()

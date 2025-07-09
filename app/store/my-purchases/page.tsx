@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -8,49 +8,14 @@ import { ArrowLeft, Download, FileText, Video, Music, ImageIcon, File, ExternalL
 import Link from "next/link"
 import Image from "next/image"
 import StandardHeader from "@/components/standard-header"
-
-// Simulando produtos adquiridos
-const purchasedProducts = [
-  {
-    id: "prod1",
-    title: "E-book: Nutrição Esportiva",
-    image: "/placeholder.svg?height=200&width=150",
-    purchaseDate: "10/05/2023",
-    fileType: "pdf",
-    fileSize: "12.5 MB",
-    downloadUrl: "#",
-  },
-  {
-    id: "prod2",
-    title: "Plano de Treino 30 dias",
-    image: "/placeholder.svg?height=200&width=150",
-    purchaseDate: "22/06/2023",
-    fileType: "pdf",
-    fileSize: "8.2 MB",
-    downloadUrl: "#",
-  },
-  {
-    id: "prod3",
-    title: "Meditações Guiadas",
-    image: "/placeholder.svg?height=200&width=150",
-    purchaseDate: "05/07/2023",
-    fileType: "mp3",
-    fileSize: "45.8 MB",
-    downloadUrl: "#",
-  },
-  {
-    id: "prod4",
-    title: "Vídeo Aula: Postura Correta",
-    image: "/placeholder.svg?height=200&width=150",
-    purchaseDate: "18/07/2023",
-    fileType: "mp4",
-    fileSize: "128.4 MB",
-    downloadUrl: "#",
-  },
-]
+import { useUser } from "@supabase/auth-helpers-react"
+import { supabase } from "@/lib/supabase"
 
 export default function MyPurchasesPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [purchasedProducts, setPurchasedProducts] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const user = useUser()
 
   const handleDownload = (id: string) => {
     setDownloadingId(id)
@@ -61,6 +26,57 @@ export default function MyPurchasesPage() {
       alert("Download concluído!")
     }, 2000)
   }
+
+   useEffect(() => {
+    if (!user.id) return
+
+    const fetchPurchasedProducts = async () => {
+      setLoading(true)
+
+      const { data, error } = await supabase
+        .from("purchases")
+        .select(`
+          id,
+          created_at,
+          price_paid,
+          currency,
+          status,
+          products (
+            id,
+            title,
+            image_url,
+            file_type,
+            file_size,
+            download_url
+          )
+        `)
+        .eq("user_id", user.id)
+        .eq("status", "completed")
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Erro ao carregar compras:", error)
+        setLoading(false)
+        return
+      }
+
+      // Normaliza o formato igual ao que você usava
+      const formatted = data.map((purchase: any) => ({
+        id: purchase.products.id,
+        title: purchase.products.title,
+        image: purchase.products.image_url,
+        purchaseDate: new Date(purchase.created_at).toLocaleDateString("pt-BR"),
+        fileType: purchase.products.file_type,
+        fileSize: purchase.products.file_size,
+        downloadUrl: purchase.products.download_url,
+      }))
+
+      setPurchasedProducts(formatted)
+      setLoading(false)
+    }
+
+    fetchPurchasedProducts()
+  }, [user])
 
   const getFileIcon = (fileType: string) => {
     switch (fileType) {

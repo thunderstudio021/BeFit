@@ -6,9 +6,23 @@ import FitcoinCounter from "@/components/fitcoin-counter"
 import ProfileMenu from "@/components/profile-menu"
 import { useTheme } from "@/contexts/theme-context"
 import Link from "next/link"
-
+import { useUser } from '@supabase/auth-helpers-react'
+import { useEffect, useState } from "react"
+import { getUserProfile } from "@/lib/services/profileService"
+import { useFitcoin } from "@/hooks/use-fitcoin"
 export default function StandardHeader() {
   const { isDark, toggleTheme } = useTheme()
+  const user = useUser()
+  const [profile, setProfile] = useState<any>(null)
+  const {setFitcoin}=useFitcoin();
+
+  useEffect(() => {
+    if (!user) return
+
+    getUserProfile(user.id)
+      .then((data) => {setProfile(data);setFitcoin(data.fitcoins)})
+      .catch((err) => console.error(err))
+  }, [user])
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-background/80 backdrop-blur-md border-b border-border/50">
@@ -43,7 +57,7 @@ export default function StandardHeader() {
             </Button>
           </Link>
         </div>
-        <ProfileMenu />
+        <ProfileMenu profile={profile}/>
       </div>
     </header>
   )

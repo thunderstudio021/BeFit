@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { X, Heart } from "lucide-react"
 import Image from "next/image"
 import { useFitcoin } from "@/hooks/use-fitcoin"
+import { supabase } from "@/lib/supabase"
 
 interface Comment {
   user: string
@@ -17,7 +18,8 @@ interface CommentsModalProps {
   onClose: () => void
   postId: string
   initialComments?: Comment[]
-  onCommentAdded?: (comment: Comment) => void
+  onCommentAdded?: () => void,
+  user:any
 }
 
 export default function CommentsModal({
@@ -26,6 +28,7 @@ export default function CommentsModal({
   postId,
   initialComments = [],
   onCommentAdded,
+  user
 }: CommentsModalProps) {
   const [commentText, setCommentText] = useState("")
   const [comments, setComments] = useState<Comment[]>(initialComments)
@@ -33,8 +36,21 @@ export default function CommentsModal({
   const commentInputRef = useRef<HTMLInputElement>(null)
   const { addFitcoin } = useFitcoin()
 
+  const loadComments = async () => {
+    const {data,error}=await supabase.from(`comments`).select(`*, profiles(avatar_url, username)`).eq(`post_id`, postId);
+    if(!data)return null;
+    const comments: Comment[] = data.map((item) => ({
+      user: item.profiles?.username || "Usuário",
+      text: item.content,
+      time: item.created_at,
+      avatar: item.profiles?.avatar_url,
+    }));
+    setComments(comments)
+  }
+
   // Gerenciar scroll do body quando modal está aberto
   useEffect(() => {
+    loadComments();
     if (isOpen) {
       const scrollPosition = window.pageYOffset
       document.body.style.overflow = "hidden"
@@ -69,7 +85,7 @@ export default function CommentsModal({
     }
   }, [isOpen])
 
-  const handleSendComment = () => {
+  const handleSendComment = async () => {
     if (commentText.trim()) {
       const newComment: Comment = {
         user: "você",
@@ -78,17 +94,14 @@ export default function CommentsModal({
         avatar: "/placeholder.svg?height=32&width=32",
       }
 
-      setComments((prev) => [newComment, ...prev])
+      await supabase.from(`comments`).insert({user_id:user.id, post_id: postId, content: commentText});
 
-      // Adicionar 1 fitcoin por comentar (apenas uma vez por post)
-      if (!commentedPosts.has(postId)) {
-        setCommentedPosts((prev) => new Set(prev).add(postId))
-        addFitcoin(1)
-      }
+      loadComments();
+
 
       // Callback para o componente pai
       if (onCommentAdded) {
-        onCommentAdded(newComment)
+        onCommentAdded()
       }
 
       setCommentText("")

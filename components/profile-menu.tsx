@@ -1,23 +1,28 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Avatar } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Settings, BarChart3, ShoppingBag, Shield, User, Calendar, Crown } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-
+import { useUser } from '@supabase/auth-helpers-react'
+import { getUserProfile } from '@/lib/services/profileService'
 // Mock user data - replace with actual user context/API call
 const mockUser = {
-  type: "admin", // 'free', 'premium', 'admin'
+  type: "free", // 'free', 'premium', 'admin'
   premiumStartDate: "2024-07-05", // Date when user first paid for premium
   premiumPrice: 29.9,
 }
 
-export default function ProfileMenu() {
+export default function ProfileMenu(props:any) {
+  const {profile} = props;
   const [isOpen, setIsOpen] = useState(false)
-
+  
+  console.log(profile);
+  if (!profile) return <p>Carregando...</p>
+  console.log(profile);
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
@@ -44,8 +49,8 @@ export default function ProfileMenu() {
               />
             </Avatar>
             <div>
-              <SheetTitle className="text-lg text-gradient">João Silva</SheetTitle>
-              <p className="text-sm text-muted-foreground">@joao.fitness</p>
+              <SheetTitle className="text-lg text-gradient">{profile?.full_name}</SheetTitle>
+              <p className="text-sm text-muted-foreground">@{profile?.username}</p>
               <div className="flex items-center gap-1 mt-1">
                 <Crown className="w-4 h-4 text-yellow-500" />
                 <span className="text-xs text-yellow-500">Premium</span>
@@ -135,7 +140,7 @@ export default function ProfileMenu() {
             Configurações
           </Button>
 
-          {mockUser.type === "admin" && (
+          {profile.user_type === "admin" && (
             <div className="pt-4 border-t border-border/50">
               <Link href="/admin">
                 <Button

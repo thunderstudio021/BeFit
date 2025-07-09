@@ -8,7 +8,21 @@ import BottomNavigation from "@/components/bottom-navigation"
 import DesktopSidebar from "@/components/desktop-sidebar"
 import FitcoinNotification from "@/components/fitcoin-notification"
 import CommentsModal from "@/components/comments-modal"
-
+import { supabase } from "@/lib/supabase"
+interface FitzItem {
+  id: number
+  user: string
+  avatar: string
+  verified: boolean
+  description: string
+  media: string
+  likes: number
+  comments: number
+  shares: number
+  isVideo: boolean
+  externalLink?: string
+  linkText?: string
+}
 export default function FitzPage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [likedItems, setLikedItems] = useState<Set<number>>(new Set())
@@ -23,53 +37,52 @@ export default function FitzPage() {
   const observerRef = useRef<IntersectionObserver | null>(null)
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const currentVideoRef = useRef<HTMLVideoElement | null>(null)
-
+  const [fitz, setFitz] = useState<FitzItem[]>([])
   // Dados básicos dos vídeos
-  const baseFitz = [
-    {
-      id: 1,
-      user: "maria.fitness",
-      avatar: "/placeholder.svg?height=40&width=40",
-      verified: true,
-      description: "Treino de hoje concluído! 💪 Transformação incrível em 30 dias #BBfitness #transformation",
-      media: "/placeholder.svg?height=1920&width=1080",
-      likes: 245000,
-      comments: 3200,
-      shares: 1800,
-      isVideo: true,
-      externalLink: "https://bbfitness.com/planos",
-      linkText: "Ver plano completo",
-    },
-    {
-      id: 2,
-      user: "coach_pedro",
-      avatar: "/placeholder.svg?height=40&width=40",
-      verified: true,
-      description: "Dica rápida para ganho de massa! Assista até o final 👇 #dicas #musculacao #hipertrofia",
-      media: "/placeholder.svg?height=1920&width=1080",
-      likes: 578000,
-      comments: 8900,
-      shares: 4200,
-      isVideo: true,
-      externalLink: "https://bbfitness.com/treinos",
-      linkText: "Saiba mais",
-    },
-    {
-      id: 3,
-      user: "nutri.amanda",
-      avatar: "/placeholder.svg?height=40&width=40",
-      verified: true,
-      description: "Receita de pré-treino natural! Salve para depois 🥤 #receitas #pretreino #nutricao",
-      media: "/placeholder.svg?height=1920&width=1080",
-      likes: 412000,
-      comments: 6700,
-      shares: 2100,
-      isVideo: false,
-      externalLink: "https://bbfitness.com/receitas",
-      linkText: "Ver receita completa",
-    },
-  ]
 
+  useEffect(() => {
+    const fetchFitz = async () => {
+      const { data, error } = await supabase
+        .from('fitz')
+        .select(`
+          id,
+          created_at,
+          author,
+          caption,
+          file,
+          link,
+          "isVisible"
+        `)
+        .eq('isVisible', true)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Erro ao carregar Fitz:', error)
+        return
+      }
+
+      if (data) {
+        const mapped: FitzItem[] = data.map((item) => ({
+          id: item.id,
+          user: item.author || 'unknown',
+          avatar: '/placeholder.svg?height=40&width=40',
+          verified: true,
+          description: item.caption,
+          media: item.file,
+          likes: 0,
+          comments: 0,
+          shares: 0,
+          isVideo: item.file.startsWith('data:video'),
+          externalLink: item.link,
+          linkText: 'Saiba mais',
+        }))
+        setFitz(mapped)
+      }
+    }
+
+    fetchFitz()
+  }, [])
+ 
   // Comentários iniciais
   useEffect(() => {
     const initialComments = {
@@ -91,14 +104,6 @@ export default function FitzPage() {
     setComments(initialComments)
   }, [])
 
-  // Criar array maior para scroll infinito
-  const fitz = Array.from({ length: 50 }, (_, index) => {
-    const baseItem = baseFitz[index % baseFitz.length]
-    return {
-      ...baseItem,
-      id: baseItem.id + Math.floor(index / baseFitz.length) * 1000,
-    }
-  })
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) {
