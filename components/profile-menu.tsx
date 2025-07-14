@@ -9,6 +9,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useUser } from '@supabase/auth-helpers-react'
 import { getUserProfile } from '@/lib/services/profileService'
+import { supabase } from "@/lib/supabase"
 // Mock user data - replace with actual user context/API call
 const mockUser = {
   type: "free", // 'free', 'premium', 'admin'
@@ -154,6 +155,15 @@ export default function ProfileMenu(props:any) {
               </Link>
             </div>
           )}
+
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-3 h-12 hover:bg-purple-500/10 hover:text-purple-500 transition-all duration-300"
+            onClick={() => {supabase.auth.signOut();window.location.href=`/auth`}}
+          >
+            <Settings className="w-5 h-5" />
+            Sair
+          </Button>
         </div>
       </SheetContent>
     </Sheet>

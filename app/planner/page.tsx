@@ -90,26 +90,62 @@ export default function PlannerPage() {
 
 
   // Estados para desafios
-  const [challenges, setChallenges] = useState<Challenge[]>([
-    {
-      id: 1,
-      title: "30 Dias de Exercícios",
-      totalDays: 30,
-      completedDays: 15,
-      motivationalPhrase: "Você está no meio do caminho! 💪",
-      completed: false,
-      lastCheckDate: undefined,
-    },
-    {
-      id: 2,
-      title: "Beber 3L de Água",
-      totalDays: 7,
-      completedDays: 5,
-      motivationalPhrase: "Quase lá! Hidratação em dia! 💧",
-      completed: false,
-      lastCheckDate: undefined,
-    },
-  ])
+  const [challenges, setChallenges] = useState<Challenge[]>([])
+
+  async function fetchUserChallenges(userId: string) {
+  const { data, error } = await supabase
+    .from('challange')
+    .select(`
+      id,
+      progress,
+      post_id,
+      posts:post_id (
+        id,
+        poll_options,
+        created_at
+      )
+    `)
+    .eq('user_id', userId)
+
+  if (error) {
+    console.error('Erro ao buscar desafios do usuário:', error)
+    return []
+  }
+
+  const challenges = data.map((c:any) => {
+    const opts = c.posts?.poll_options || {}
+    return {
+      id: c.id,
+      postId: c.post_id,
+      title: opts.title || 'Desafio',
+      totalDays: opts.days || 0,
+      completedDays: c.progress || 0,
+      motivationalPhrase: getRandomPhrase(),
+      completed: (c.progress || 0) >= (opts.days || 0),
+      lastCheckDate: undefined, // pode incluir se salvar a data do último check
+    }
+  })
+
+  return challenges
+}
+
+function getRandomPhrase() {
+  const phrases = [
+    "Um passo de cada vez. Você está indo bem!",
+    "Persistência supera talento. Continue firme!",
+    "Desistir não é uma opção. Bora pra cima!",
+    "Cada dia é uma vitória. Você consegue!",
+    "Seu esforço vai valer a pena. Orgulhe-se disso!",
+    "Continue. Você já chegou até aqui!",
+    "Você é mais forte do que pensa!",
+    "Desafie-se, surpreenda-se!",
+    "O progresso mora na constância!",
+    "Não pare agora. Você está quase lá!",
+  ]
+  return phrases[Math.floor(Math.random() * phrases.length)]
+}
+
+
 
   // Seus estados
   const [meals, setMeals] = useState<MealItem[]>([])
@@ -206,6 +242,9 @@ export default function PlannerPage() {
       })) || []
 
       setDailyGoals(mergedGoals)
+
+      const challanges = await fetchUserChallenges(user.id);
+      setChallenges(challanges);
     }
 
   useEffect(() => {
@@ -268,43 +307,69 @@ export default function PlannerPage() {
     showNotification("success", "Meta Atualizada! ⚙️", `Nova meta: ${tempWaterGoal}L por dia`)
   }
 
-  // Completar dia do desafio
-  const completeChallenge = (challengeId: number) => {
-    setChallenges((prev) =>
-      prev.map((challenge) => {
-        if (challenge.id === challengeId && challenge.completedDays < challenge.totalDays) {
-          if (!canCheckChallenge(challenge)) {
-            showNotification("success", "Aguarde! ⏰", "Você já marcou hoje. Volte em 24 horas!")
-            return challenge
-          }
+  async function registerChallengeCheck(challengeId: number) {
+  const { error } = await supabase.from('challenge_check').insert({
+    challenge_id: challengeId,
+    date: new Date().toISOString().split('T')[0], // só a data (YYYY-MM-DD)
+  })
 
-          const newCompletedDays = challenge.completedDays + 1
-          const isCompleted = newCompletedDays >= challenge.totalDays
-          const now = new Date().toISOString()
-
-          if (isCompleted) {
-            addFitcoin(1, user)
-            showNotification("challenge", "Desafio Concluído! 🏆", "Parabéns! Você ganhou 1 Fitcoin!")
-
-            // Remove o desafio após 2 segundos
-            setTimeout(() => {
-              setChallenges((prev) => prev.filter((c) => c.id !== challengeId))
-            }, 2000)
-          } else {
-            showNotification("success", "Dia Concluído! ✅", challenge.motivationalPhrase)
-          }
-
-          return {
-            ...challenge,
-            completedDays: newCompletedDays,
-            completed: isCompleted,
-            lastCheckDate: now,
-          }
-        }
-        return challenge
-      }),
-    )
+  if (error) {
+    console.error('Erro ao registrar check:', error)
+    throw error
   }
+}
+
+
+  // Completar dia do desafio
+  const completeChallenge = async (challengeId: number) => {
+  const today = new Date().toISOString().split('T')[0]
+
+  const challenge = challenges.find((c) => c.id === challengeId)
+  if (!challenge) return
+
+  if (!canCheckChallenge(challenge)) {
+    showNotification("success", "Aguarde! ⏰", "Você já marcou hoje. Volte em 24 horas!")
+    return
+  }
+
+  try {
+    // 1. Salva o check no Supabase
+    await registerChallengeCheck(challengeId)
+
+    // 2. Atualiza localmente
+    setChallenges((prev) =>
+      prev.map((c) => {
+        if (c.id !== challengeId) return c
+
+        const newCompletedDays = c.completedDays + 1
+        const isCompleted = newCompletedDays >= c.totalDays
+        const now = new Date().toISOString()
+
+        if (isCompleted) {
+          addFitcoin(1, user)
+          showNotification("challenge", "Desafio Concluído! 🏆", "Parabéns! Você ganhou 1 Fitcoin!")
+
+          // Remove o desafio após 2 segundos
+          setTimeout(() => {
+            setChallenges((prev) => prev.filter((c) => c.id !== challengeId))
+          }, 2000)
+        } else {
+          showNotification("success", "Dia Concluído! ✅", c.motivationalPhrase)
+        }
+
+        return {
+          ...c,
+          completedDays: newCompletedDays,
+          completed: isCompleted,
+          lastCheckDate: today,
+          checkedToday: true,
+        }
+      })
+    )
+  } catch (error) {
+    //showNotification("error", "Erro", "Não foi possível registrar o progresso. Tente novamente.")
+  }
+}
 
   // -------------------------
 // 🥗 Funções para refeições

@@ -5,8 +5,9 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Trophy, Target, Coins, TrendingUp, TrendingDown, Calendar, Clock, Award, Sparkles } from "lucide-react"
 import AppLayout from "@/components/app-layout"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { formatInTimeZone } from "@/lib/utils"
+import { supabase } from "@/lib/supabase"
 
 interface CompletedChallenge {
   id: number
@@ -92,6 +93,89 @@ export default function StatisticsPage() {
     spent: 28,
     balance: 17,
   })
+
+  useEffect(() => {
+  const loadChallengeData = async () => {
+    const { data: authData } = await supabase.auth.getUser()
+    const userId = authData?.user?.id
+    if (!userId) return
+
+    // 1. Buscar todos os desafios do usuário
+    const { data: challenges, error } = await supabase
+      .from("challange")
+      .select(`
+        id,
+        progress,
+        post_id,
+        posts:post_id (
+          id,
+          poll_options
+        )
+      `)
+      .eq("user_id", userId)
+
+    if (error) {
+      console.error("Erro ao buscar desafios:", error)
+      return
+    }
+
+    const completed: CompletedChallenge[] = []
+    const ongoing: OngoingChallenge[] = []
+
+    let totalEarned = 0
+
+    challenges.forEach((c:any) => {
+      const opts = c.posts?.poll_options || {}
+      const totalDays = opts.days || 0
+      const name = opts.title || "Desafio"
+      const category = opts.category || "Geral"
+      const completedDays = c.progress || 0
+      const progressPercent = Math.floor((completedDays / totalDays) * 100)
+      const remainingDays = totalDays - completedDays
+
+      if (completedDays >= totalDays) {
+        completed.push({
+          id: c.id,
+          name,
+          completionDate: new Date().toISOString(),
+          fitcoinsEarned: 1, // ou qualquer lógica de recompensa
+          category,
+        })
+        totalEarned += 1
+      } else {
+        ongoing.push({
+          id: c.id,
+          name,
+          progress: progressPercent,
+          totalDays,
+          completedDays,
+          timeRemaining: `${remainingDays} dias`,
+          category,
+        })
+      }
+    })
+
+    // 2. Buscar gastos em Fitcoins
+    const { data: purchases, error: purchasesError } = await supabase
+      .from("purchases")
+      .select("price_paid")
+      .eq("user_id", userId)
+      .eq("currency", "fitcoin")
+
+    const totalSpent = purchases?.reduce((acc, p) => acc + Number(p.price_paid), 0) || 0
+
+    // 3. Atualiza estados
+    setCompletedChallenges(completed)
+    setOngoingChallenges(ongoing)
+    setFitcoinSummary({
+      earned: totalEarned,
+      spent: totalSpent,
+      balance: totalEarned - totalSpent,
+    })
+  }
+
+  loadChallengeData()
+}, [])
 
   const formatDate = (dateString: string) => {
     return formatInTimeZone(dateString, "dd/MM/yyyy")

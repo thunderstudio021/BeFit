@@ -20,16 +20,16 @@ export default function DesktopSidebar() {
     if (!user) return
 
     getUserProfile(user.id)
-      .then((data) => {setProfile(data);})
+      .then((data) => {setProfile(data);console.log('ai ze da manga', data);})
       .catch((err) => console.error(err))
   }, [user])
 
   const navItems = [
-    { icon: Home, path: "/", label: "Home" },
-    { icon: Calendar, path: "/planner", label: "Planner" },
-    { icon: Crown, path: "/premium", label: "Premium" },
-    { icon: Coins, path: "/store", label: "Store" },
-    { icon: Film, path: "/fitz", label: "Fitz" },
+    { icon: Home, path: "/", label: "Home", premium: false },
+    { icon: Calendar, path: "/planner", label: "Planner", premium: true },
+    { icon: Crown, path: "/premium", label: "Premium", premium: true },
+    { icon: Coins, path: "/store", label: "Store", premium: true },
+    { icon: Film, path: "/fitz", label: "Fitz", premium: true },
   ]
 
   return (
@@ -45,6 +45,11 @@ export default function DesktopSidebar() {
         <div className={cn("flex flex-col space-y-1 px-3 flex-1", isCollapsed ? "overflow-hidden" : "overflow-y-auto")}>
           {navItems.map((item) => {
             const isActive = pathname === item.path
+            if(item.premium){
+              if(profile?.user_type == "free"){
+                return (<></>)
+              }
+            }
             return (
               <Link href={item.path} key={item.path} className="w-full">
                 <div

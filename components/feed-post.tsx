@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -56,6 +56,8 @@ interface FeedPostProps {
   _liked:any
   alreadyLiked:any
   _reposted:any
+  username:any
+  videoUrl:any
   onPostCreated?: () => void // Adicionar esta linha
 }
 
@@ -65,6 +67,7 @@ export default function FeedPost({
   avatar,
   content,
   image,
+  videoUrl,
   videoThumbnail,
   backgroundColor,
   pollOptions,
@@ -87,13 +90,13 @@ export default function FeedPost({
   _liked,
   _reposted,
   alreadyLiked,
+  username,
   onPostCreated, // Adicionar esta linha
 }: FeedPostProps) {
   const router = useRouter()
   const { toast } = useToast()
   const { addFitcoin } = useFitcoin()
   const User = useUser();
-  
   // Estados locais
   const [liked, setLiked] = useState(_liked)
   const [likeCount, setLikeCount] = useState(likes)
@@ -104,25 +107,60 @@ export default function FeedPost({
   const [pollResults, setPollResults] = useState<number[]>([])
   const [showComments, setShowComments] = useState(false)
   const [joined, setJoined] = useState(false)
+  const [muted, setMuted] = useState(false)
 
   // Carregar dados salvos do localStorage
   useEffect(() => {
-    const currentUser = localStorage.getItem("currentUser") || "user"
+  const fetchData = async () => {
+    const currentUser = User?.id
 
-
-    // Carregar resultados de enquete
+    // Carregar resultados da enquete via Supabase
     if (type === "poll" && pollOptions) {
-      const savedPolls = JSON.parse(localStorage.getItem("pollResults") || "{}")
-      const pollData = savedPolls[postId]
-      if (pollData) {
-        setPollResults(pollData.results)
-        setSelectedPollOption(pollData.userVote)
-      } else {
-        setPollResults(generatePollResults(pollOptions.length))
+      const { data: votes, error } = await supabase
+        .from("poll_votes")
+        .select("user_id, index")
+        .eq("post_id", postId)
+
+      if (error) {
+        console.error("Erro ao buscar votos da enquete:", error)
+        return
+      }
+
+      // Contagem de votos por índice
+      const optionCount = new Array(pollOptions.length).fill(0)
+      let userVote: number | null = null
+
+      votes.forEach((vote) => {
+        if (vote.user_id === currentUser) userVote = vote.index
+        if (typeof vote.index === "number") optionCount[vote.index]++
+      })
+
+      setPollResults(optionCount)
+      setSelectedPollOption(userVote)
+    }
+
+    // Verificar se usuário está participando do desafio
+    if (type === "challenge") {
+      const { data, error } = await supabase
+        .from("challange")
+        .select("id")
+        .eq("user_id", currentUser)
+        .eq("post_id", postId)
+        .maybeSingle()
+
+      if (error) {
+        console.error("Erro ao verificar participação no desafio:", error)
+        return
+      }
+
+      if (data) {
+        setJoined(true)
       }
     }
-  }, [postId, likes, shares, comments, type, pollOptions])
+  }
 
+  fetchData()
+}, [postId, type, pollOptions])
   // Função para navegar para o perfil
   const handleProfileClick = (e: React.MouseEvent, username: string) => {
     e.stopPropagation()
@@ -132,6 +170,35 @@ export default function FeedPost({
       .replace(/[^a-z0-9.]/g, "")
     router.push(`/profile/${formattedUsername}`)
   }
+
+  const handleMediaPress = useCallback(
+      (index: number) => {
+        const video = videoRefs.current.get(index)
+        if (video) {
+          video.pause()
+        }
+      },
+      [],
+    )
+  
+    const handleMediaRelease = useCallback(
+      (index: number) => {
+
+      },
+      [],
+    )
+
+    const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map())
+  
+    const handleMediaClick = useCallback(() => {
+      setMuted((prev) => {
+        const newMuted = !prev
+        videoRefs.current.forEach((video) => {
+          if (video) video.muted = newMuted
+        })
+        return newMuted
+      })
+    }, [])
 
   // Gerar resultados aleatórios para a enquete
   const generatePollResults = (optionsCount: number) => {
@@ -293,29 +360,82 @@ export default function FeedPost({
     }
   }
 
-  const handlePollVote = (index: number) => {
-    if (selectedPollOption === null) {
-      setSelectedPollOption(index)
-      const newResults = [...pollResults]
-      newResults[index] += 1
-      setPollResults(newResults)
-      savePollResults(newResults, index)
-      addFitcoin(User, 1)
-    }
-  }
+  const handlePollVote = async (index: number) => {
+  if (selectedPollOption !== null) return
 
-  const handleJoinChallenge = () => {
-    if (!joined) {
-      setJoined(true)
-      addFitcoin(User, 1)
+  const userId = User?.id // Certifique-se que User.id é o UUID correto
 
+  try {
+    // 1. Salva o voto no Supabase
+    const { error } = await supabase.from("poll_votes").insert({
+      user_id: userId,
+      post_id: postId,
+      index: index,
+    })
+
+    if (error) {
+      console.error("Erro ao registrar voto:", error)
       toast({
-        title: "Desafio Adicionado! 🎯",
-        description: `Você está participando do desafio: ${content.substring(0, 30)}...`,
-        variant: "default",
+        title: "Erro ao votar",
+        description: "Não foi possível registrar seu voto.",
+        variant: "destructive",
       })
+      return
     }
+
+    // 2. Atualiza localmente
+    setSelectedPollOption(index)
+    const newResults = [...pollResults]
+    newResults[index] += 1
+    setPollResults(newResults)
+
+    // 3. Recompensa
+    addFitcoin(User, 1)
+  } catch (err) {
+    console.error("Erro inesperado ao votar:", err)
   }
+}
+
+  const handleJoinChallenge = async () => {
+  if (joined) return
+
+  try {
+    // 1. Insere participação na tabela challange
+    const { error } = await supabase.from('challange').insert({
+      user_id: User?.id,
+      post_id: postId, // substitua por sua variável correta
+      progress: 0,
+    })
+
+    if (error) {
+      console.error("Erro ao participar do desafio:", error)
+      toast({
+        title: "Erro 😢",
+        description: "Não foi possível entrar no desafio. Tente novamente.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // 2. Atualiza estado local e recompensa
+    setJoined(true)
+    addFitcoin(User, 1)
+
+    toast({
+      title: "Desafio Adicionado! 🎯",
+      description: `Você está participando do desafio: ${content.substring(0, 30)}...`,
+      variant: "default",
+    })
+  } catch (err) {
+    console.error("Erro inesperado:", err)
+    toast({
+      title: "Erro Inesperado",
+      description: "Algo deu errado ao tentar participar do desafio.",
+      variant: "destructive",
+    })
+  }
+}
+
 
   const handleBuyWithFitcoin = () => {
     if (fitcoinPrice) {
@@ -334,6 +454,18 @@ export default function FeedPost({
   }
 
   const totalPollVotes = pollResults.reduce((acc, curr) => acc + curr, 0)
+
+  // Manipular referência de vídeo
+    const setVideoRef = useCallback(
+      (index: number) => (el: HTMLVideoElement | null) => {
+        if (el) {
+          videoRefs.current.set(index, el)
+        } else {
+          videoRefs.current.delete(index)
+        }
+      },
+      [],
+    )
 
   const formattedTimestamp = useMemo(() => {
     if (!timestamp) {
@@ -380,12 +512,20 @@ export default function FeedPost({
             <p className="px-4 mb-3 whitespace-pre-line">{content}</p>
             {videoThumbnail && (
               <div className="relative w-full aspect-video mb-3 bg-black">
-                <Image
-                  src={videoThumbnail || "/placeholder.svg"}
-                  alt="Video thumbnail"
-                  fill
-                  className="object-cover opacity-80"
-                />
+                <video
+                        ref={setVideoRef(0)}
+                        src={videoUrl}
+                        className="w-full h-full object-cover"
+                        loop
+                        muted={muted}
+                        playsInline
+                        controls 
+                        preload="metadata"
+                        poster="/placeholder.svg?height=1920&width=1080"
+                        onMouseDown={() => handleMediaPress(0)}
+                        onMouseUp={() => handleMediaRelease(0)}
+                        onClick={handleMediaClick}
+                      />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="bg-black/30 rounded-full p-4">
                     <Play className="w-8 h-8 text-white fill-white" />
@@ -574,7 +714,7 @@ export default function FeedPost({
                   <span>@{repostedBy} repostou</span>
                 </div>
               )}
-              <Avatar className="cursor-pointer" onClick={(e) => handleProfileClick(e, displayUser)}>
+              <Avatar className="cursor-pointer" onClick={(e) => handleProfileClick(e, username)}>
                 <AvatarImage src={displayAvatar || "/placeholder.svg"} alt={displayUser} />
                 <AvatarFallback>{displayUser?.charAt(0).toUpperCase()}</AvatarFallback>
               </Avatar>
@@ -644,3 +784,4 @@ export default function FeedPost({
     </>
   )
 }
+

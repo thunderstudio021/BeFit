@@ -45,6 +45,7 @@ import Link from "next/link"
 import BottomNavigation from "@/components/bottom-navigation"
 import { Progress } from "@/components/ui/progress"
 import { supabase } from "@/lib/supabase"
+import { useUser } from "@/hooks/useUser"
 
 
 
@@ -55,6 +56,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("stats")
   const [chartData, setChartData] = useState<number[]>([35, 55, 42, 58, 63, 70, 78])
   const [isLoaded, setIsLoaded] = useState(false);
+  const user = useUser();
   const [mockFitzContent, setMockFitzContent] = useState([
   {
     id: 1,
@@ -161,6 +163,20 @@ export default function AdminDashboard() {
     },
   ])
 
+  type AdminSummary = {
+  totalUsers: number
+  totalSubscriptions: number
+  subscriptionsToday: number
+  fitcoinSalesToday: number
+}
+
+const [adminSummary, setAdminSummary] = useState<AdminSummary>({
+  totalUsers: 0,
+  totalSubscriptions: 0,
+  subscriptionsToday: 0,
+  fitcoinSalesToday: 0,
+})
+
   const [showAdModal, setShowAdModal] = useState(false)
   const [editingAd, setEditingAd] = useState(null)
   const [adForm, setAdForm] = useState({
@@ -185,6 +201,8 @@ export default function AdminDashboard() {
           } else {
             console.log("Posts com perfil completo:", data)
           }
+          const statsData = await fetchDashboardStats()
+          setAdminSummary({...statsData, totalUsers: data.length})
           setMockUsers(data || [])
   }
 
@@ -1039,6 +1057,38 @@ const { error: updateError } = await supabase
     })
   }
 
+  const fetchDashboardStats = async () => {
+  const today = new Date().toISOString().split("T")[0]
+
+  // Total de usuários (já disponível, não precisa consultar)
+
+  // Total de assinaturas
+  const { count: totalSubscriptions } = await supabase
+    .from("subscriptions")
+    .select("*", { count: "exact", head: true })
+
+  // Assinaturas criadas hoje
+  const { count: todaySubscriptions } = await supabase
+    .from("subscriptions")
+    .select("*", { count: "exact", head: true })
+    .gte("created_at", `${today}T00:00:00`)
+    .lte("created_at", `${today}T23:59:59`)
+
+  // Compras em Fitcoin hoje
+  const { count: fitcoinSalesToday } = await supabase
+    .from("purchases")
+    .select("*", { count: "exact", head: true })
+    .eq("currency", "fitcoin")
+    .gte("created_at", `${today}T00:00:00`)
+    .lte("created_at", `${today}T23:59:59`)
+  return {
+    totalSubscriptions,
+    subscriptionsToday:todaySubscriptions,
+    fitcoinSalesToday,
+  }
+}
+
+
   return (
     <div className="flex flex-col min-h-screen bg-background pb-16 relative overflow-hidden pt-20">
       {/* Background effects */}
@@ -1118,7 +1168,7 @@ const { error: updateError } = await supabase
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground">Usuários</p>
                     <div className="flex items-end gap-1">
-                      <p className="text-lg sm:text-xl font-bold text-foreground">12,500</p>
+                      <p className="text-lg sm:text-xl font-bold text-foreground">{adminSummary.totalUsers}</p>
                       <span className="text-xs text-green-500 flex items-center">
                         +2.4% <TrendingUp className="w-2.5 h-2.5 ml-0.5" />
                       </span>
@@ -1131,7 +1181,7 @@ const { error: updateError } = await supabase
                     <span className="text-foreground font-medium">15,000</span>
                   </div>
                   <Progress
-                    value={83}
+                    value={(adminSummary.totalUsers / 15000) * 100}
                     className="h-1 sm:h-1.5 bg-blue-500/20"
                     indicatorClassName="bg-gradient-to-r from-blue-500 to-blue-600"
                   />
@@ -1149,7 +1199,7 @@ const { error: updateError } = await supabase
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground">Assinantes</p>
                     <div className="flex items-end gap-1">
-                      <p className="text-lg sm:text-xl font-bold text-foreground">3,200</p>
+                      <p className="text-lg sm:text-xl font-bold text-foreground">{adminSummary.totalSubscriptions}</p>
                       <span className="text-xs text-green-500 flex items-center">
                         +5.7% <TrendingUp className="w-2.5 h-2.5 ml-0.5" />
                       </span>
@@ -1162,7 +1212,7 @@ const { error: updateError } = await supabase
                     <span className="text-foreground font-medium">4,000</span>
                   </div>
                   <Progress
-                    value={80}
+                    value={(adminSummary.totalSubscriptions / 4000) * 100}
                     className="h-1 sm:h-1.5 bg-yellow-500/20"
                     indicatorClassName="bg-gradient-to-r from-yellow-500 to-orange-500"
                   />
@@ -1180,7 +1230,7 @@ const { error: updateError } = await supabase
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground">Assinantes Hoje</p>
                     <div className="flex items-end gap-1">
-                      <p className="text-lg sm:text-xl font-bold text-foreground">R$ 1,410</p>
+                      <p className="text-lg sm:text-xl font-bold text-foreground">{adminSummary.fitcoinSalesToday}</p>
                       <span className="text-xs text-green-500 flex items-center">
                         +12% <TrendingUp className="w-2.5 h-2.5 ml-0.5" />
                       </span>
@@ -1193,7 +1243,7 @@ const { error: updateError } = await supabase
                     <span className="text-foreground font-medium">50</span>
                   </div>
                   <Progress
-                    value={94}
+                    value={(adminSummary.fitcoinSalesToday / 50) * 100}
                     className="h-1 sm:h-1.5 bg-green-500/20"
                     indicatorClassName="bg-gradient-to-r from-green-500 to-emerald-500"
                   />
@@ -1211,7 +1261,7 @@ const { error: updateError } = await supabase
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground">Vendas Fitcoin Hoje</p>
                     <div className="flex items-end gap-1">
-                      <p className="text-lg sm:text-xl font-bold text-foreground">2,800</p>
+                      <p className="text-lg sm:text-xl font-bold text-foreground">{adminSummary.fitcoinSalesToday}</p>
                       <span className="text-xs text-green-500 flex items-center">
                         +3.2% <TrendingUp className="w-2.5 h-2.5 ml-0.5" />
                       </span>
@@ -1224,7 +1274,7 @@ const { error: updateError } = await supabase
                     <span className="text-foreground font-medium">3,000</span>
                   </div>
                   <Progress
-                    value={93}
+                    value={(adminSummary.fitcoinSalesToday / 3000) * 100}
                     className="h-1 sm:h-1.5 bg-purple-500/20"
                     indicatorClassName="bg-gradient-to-r from-purple-500 to-pink-500"
                   />

@@ -37,94 +37,28 @@ interface Notification {
 
 export default function NotificationsPage() {
   const [activeTab, setActiveTab] = useState("all")
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: "1",
-      type: "admin",
-      content: "🎉 Novos treinos premium disponíveis! Confira os exercícios exclusivos para membros premium.",
-      timestamp: "5 min",
-      isRead: false,
-      actionText: "Ver treinos",
-    },
-    {
-      id: "2",
-      type: "like",
-      user: "maria.fitness",
-      avatar: "/placeholder.svg?height=40&width=40",
-      content: "curtiu sua foto",
-      timestamp: "10 min",
-      isRead: false,
-      isVerified: true,
-    },
-    {
-      id: "3",
-      type: "challenge",
-      content: "Desafio '30 dias de cardio' começou! Você está participando.",
-      timestamp: "15 min",
-      isRead: false,
-      actionText: "Ver progresso",
-    },
-    {
-      id: "4",
-      type: "comment",
-      user: "coach_pedro",
-      avatar: "/placeholder.svg?height=40&width=40",
-      content: "comentou: 'Excelente evolução! Continue assim 💪'",
-      timestamp: "1h",
-      isRead: true,
-      isVerified: true,
-    },
-    {
-      id: "5",
-      type: "follow",
-      user: "ana.strong",
-      avatar: "/placeholder.svg?height=40&width=40",
-      content: "começou a seguir você",
-      timestamp: "2h",
-      isRead: true,
-    },
-    {
-      id: "6",
-      type: "admin",
-      content: "📱 Nova atualização disponível! Melhorias na interface e novos recursos.",
-      timestamp: "3h",
-      isRead: true,
-      actionText: "Atualizar",
-    },
-    {
-      id: "7",
-      type: "share",
-      user: "fit.julia",
-      avatar: "/placeholder.svg?height=40&width=40",
-      content: "compartilhou seu post",
-      timestamp: "4h",
-      isRead: true,
-    },
-    {
-      id: "8",
-      type: "achievement",
-      content: "🏆 Parabéns! Você completou 7 dias consecutivos de treino!",
-      timestamp: "6h",
-      isRead: true,
-      actionText: "Ver conquistas",
-    },
-    {
-      id: "9",
-      type: "premium",
-      content: "👑 Sua assinatura premium expira em 3 dias. Renove para continuar aproveitando!",
-      timestamp: "1d",
-      isRead: true,
-      actionText: "Renovar",
-    },
-    {
-      id: "10",
-      type: "admin",
-      content: "🎯 Evento especial: Semana do Fitness! Participe dos desafios exclusivos.",
-      timestamp: "2d",
-      isRead: true,
-      actionText: "Participar",
-    },
-  ])
+   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const user = useUser();
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchNotifications = async () => {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Erro ao buscar notificações:", error);
+      } else {
+        setNotifications(data);
+      }
+    };
+
+    fetchNotifications();
+  }, [user]);
 
   const getNotificationIcon = (type: string) => {
     switch (type) {

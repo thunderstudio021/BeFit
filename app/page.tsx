@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { useUser } from '@supabase/auth-helpers-react'
 import { supabase } from "@/lib/supabase"
 import { getUserProfile } from "@/lib/services/profileService"
+import { StatementResultingChanges } from "node:sqlite"
 
 // Tipos para os posts
 interface Post {
@@ -44,7 +45,10 @@ interface Post {
   user_liked: boolean;
   already_like: boolean;
   user_reposted: boolean;
-  location:string
+  location:string;
+  username:string;
+  repostedBy:string;
+  isRepost:boolean;
 }
 
 interface SupabasePost {
@@ -66,12 +70,15 @@ interface SupabasePost {
     avatar_url: string,
     full_name:string,
     is_verified?: boolean
-    is_admin?: boolean
+    is_admin?: boolean,
+    username?:StatementResultingChanges
   },
   already_like: boolean;
   user_liked: boolean;
   user_reposted: boolean;
-  location:string
+  location:string;
+  repostedBy:string;
+  isRepost:boolean;
 }
 
 function mapSupabaseToPost(data: SupabasePost): Post {
@@ -83,6 +90,7 @@ function mapSupabaseToPost(data: SupabasePost): Post {
     content: data.content,
     image: data.image_url || undefined,
     videoThumbnail: data.video_url || undefined,
+    video_url: data.video_url || undefined,
     backgroundColor: data.background_color || undefined,
     pollOptions: data.poll_options || undefined,
     likes: data.likes_count,
@@ -96,7 +104,10 @@ function mapSupabaseToPost(data: SupabasePost): Post {
     user_liked: data.user_liked,
     user_reposted: data.user_reposted,
     location: data.location,
-    already_like: data.already_like
+    already_like: data.already_like,
+    username: data.profiles?.username,
+    repostedBy:data.repostedBy,
+    isRepost: data.isRepost
   }
 }
 
@@ -154,7 +165,10 @@ export default function HomePage() {
       user_liked: false,
       user_reposted: false,
       location: "",
-      already_like: true
+      already_like: true,
+      username: "",
+      repostedBy:"",
+      isRespost: false
     },
     ]
 
@@ -178,13 +192,37 @@ export default function HomePage() {
   }
 
   const loadUserPosts = async () => {
-      const { data, error } = await supabase
-      .from("posts")
-      .select(`
+  const { data: postsData, error: postsError } = await supabase
+    .from("posts")
+    .select(`
+      *,
+      profiles (
+        avatar_url,
+        full_name,
+        username
+      ),
+      likes (
+        user_id,
+        like
+      ),
+      post_reposts (
+        user_id
+      )
+    `)
+
+  const { data: repostsData, error: repostsError } = await supabase
+    .from("post_reposts")
+    .select(`
+      *,
+      user:profiles (
+        full_name
+      ),
+      posts (
         *,
         profiles (
           avatar_url,
-          full_name
+          full_name,
+          username
         ),
         likes (
           user_id,
@@ -193,39 +231,50 @@ export default function HomePage() {
         post_reposts (
           user_id
         )
-      `);
+      )
+    `)
 
-    const posts = data.map(post => {
-      const userLiked = post.likes.some((like:any) => like.user_id === user.id && like.like);
-      const userReposted = post.post_reposts.some((repost:any) => repost.user_id === user.id);
-      const userAlreadyLiked = post.likes.some((like:any) => like.user_id === user.id);
-      return {
-        ...post,
-        user_liked: userLiked,
-        user_reposted: userReposted,
-        already_like: userAlreadyLiked
-      };
-    });
+  if (postsError || repostsError) {
+    console.error("Erro ao carregar posts:", postsError || repostsError)
+    return
+  }
 
-    if (error) {
-      console.error("Erro ao buscar posts com perfil:", error)
-    } else {
-      console.log("Posts com perfil completo:", data)
+  const repostsAsPosts = repostsData.map((r: any) => ({
+    ...r.posts,
+    isRepost: true,
+    repostedBy: r.user.full_name,
+    original_created_at: r.created_at,
+  }))
+
+  const allRawPosts = [...postsData, ...repostsAsPosts]
+
+  const posts = allRawPosts.map((post: any) => {
+    const userLiked = post.likes?.some((like: any) => like.user_id === user.id && like.like)
+    const userReposted = post.post_reposts?.some((repost: any) => repost.user_id === user.id)
+    const userAlreadyLiked = post.likes?.some((like: any) => like.user_id === user.id)
+
+    return {
+      ...post,
+      user_liked: userLiked,
+      user_reposted: userReposted,
+      already_like: userAlreadyLiked,
     }
-    const _posts:any = posts || [];
+  })
 
-      const all_posts = _posts.map((v:any) => mapSupabaseToPost(v)) || [];
-      if(user){
-      const user_post = all_posts.filter((p:any) => p.user_id == user.id)
-      setUserPosts(user_post)
-      }
-      
-      const foryou:any = getIntercalatedPosts(all_posts.filter((p:any) => p.location == "foryou" ), true)
-      const community:any = getIntercalatedPosts(all_posts.filter((p:any) => p.location == "community" ))
-      setCommunityPosts(community)
-      setForYou(foryou)
-      
-    }
+  const all_posts = posts.map((v: any) => mapSupabaseToPost(v)) || []
+  console.log('all_posts', all_posts);
+  if (user) {
+    const user_post = all_posts.filter((p: any) => p.user_id === user.id)
+    setUserPosts(user_post)
+  }
+
+  const foryou = getIntercalatedPosts(all_posts.filter((p: any) => p.location === "foryou"), true)
+  const community = getIntercalatedPosts(all_posts.filter((p: any) => p.location === "community"))
+
+  setCommunityPosts(community)
+  setForYou(foryou)
+}
+
 
   // Carregar posts do usuário
   useEffect(() => {
@@ -326,6 +375,10 @@ export default function HomePage() {
                       alreadyLiked={post.already_like}
                       postId={post.id}
                       onPostCreated={handlePostCreated}
+                      username={post.username}
+                      isRepost={post.isRepost}
+                      repostedBy={post.repostedBy}
+                      videoUrl={post.video_url}
                     />
                     {index < forYouPosts.length - 1 && <Separator className="my-2 opacity-50" />}
                   </div>
@@ -367,6 +420,10 @@ export default function HomePage() {
                       postId={post.id}
                       alreadyLiked={post.already_like}
                       onPostCreated={handlePostCreated}
+                      username={post.username}
+                      isRepost={post.isRepost}
+                      repostedBy={post.repostedBy}
+                      videoUrl={post.video_url}
                     />
                     {index < communityPosts.length - 1 && <Separator className="my-2 opacity-50" />}
                   </div>

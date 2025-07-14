@@ -5,6 +5,7 @@ import { X, Heart } from "lucide-react"
 import Image from "next/image"
 import { useFitcoin } from "@/hooks/use-fitcoin"
 import { supabase } from "@/lib/supabase"
+import { format, parseISO } from "date-fns"
 
 interface Comment {
   user: string
@@ -195,7 +196,7 @@ export default function CommentsModal({
                           {comment.text}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-muted-foreground">{comment.time}</span>
+                          <span className="text-xs text-muted-foreground">{format(parseISO(comment.time), "dd/MM/yyyy HH:mm")}</span>
                         </div>
                       </div>
                     </div>

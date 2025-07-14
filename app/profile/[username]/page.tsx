@@ -11,6 +11,7 @@ import { ArrowLeft, Settings, BadgeCheck, Crown, Users, MessageSquare, Repeat } 
 import AppLayout from "@/components/app-layout"
 import FeedPost from "@/components/feed-post"
 import { useTheme } from "@/contexts/theme-context"
+import { supabase } from "@/lib/supabase"
 
 interface UserProfile {
   username: string
@@ -58,94 +59,96 @@ export default function ProfilePage() {
 
   // Simular dados do usuário
   useEffect(() => {
-    const loadUserProfile = () => {
-      // Simular carregamento
-      setTimeout(() => {
-        const mockProfile: UserProfile = {
-          username: username,
-          displayName:
-            username === "maria.fitness" ? "Maria Silva" : username === "carlos_runner" ? "Carlos Santos" : "Usuário",
-          avatar: "/placeholder.svg?height=120&width=120",
-          bio:
-            username === "maria.fitness"
-              ? "🏋️‍♀️ Apaixonada por fitness • 💪 Transformação é meu lema • 🥗 Vida saudável sempre"
-              : username === "carlos_runner"
-                ? "🏃‍♂️ Corredor apaixonado • 🎯 Sempre em busca de novos desafios • 📈 Evolução constante"
-                : "Usuário da plataforma BBfitness",
-          followers: Math.floor(Math.random() * 5000) + 100,
-          following: Math.floor(Math.random() * 1000) + 50,
-          postsCount: Math.floor(Math.random() * 200) + 20,
-          isVerified: username === "maria.fitness" || Math.random() > 0.7,
-          isPro: Math.random() > 0.5,
-          isCurrentUser: username === "current_user", // Simular usuário atual
-        }
+    const loadUserProfile = async () => {
+  const { data: authData } = await supabase.auth.getUser()
+  const currentUserId = authData?.user?.id
 
-        setUserProfile(mockProfile)
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("id, username, full_name, avatar_url, bio, followers_count, following_count, posts_count, is_verified, is_premium")
+    .ilike("username", username)
+    .maybeSingle()
 
-        // Posts do usuário
-        const mockPosts: Post[] = [
-          {
-            id: "1",
-            type: "photo",
-            user: mockProfile.displayName,
-            avatar: mockProfile.avatar,
-            content: "Completei mais um treino intenso hoje! 💪 A dedicação está valendo a pena!",
-            image: "/placeholder.svg?height=300&width=500",
-            likes: 89,
-            comments: 14,
-            shares: 5,
-            isVerified: mockProfile.isVerified,
-          },
-          {
-            id: "2",
-            type: "text",
-            user: mockProfile.displayName,
-            avatar: mockProfile.avatar,
-            content: "🎯 Meta da semana: 5 treinos completos! Quem está comigo nesse desafio?",
-            backgroundColor: "from-purple-600 to-blue-600",
-            likes: 134,
-            comments: 28,
-            shares: 15,
-            isVerified: mockProfile.isVerified,
-          },
-        ]
+  if (!profile) return
 
-        // Reposts do usuário
-        const mockReposts: Post[] = [
-          {
-            id: "3",
-            type: "challenge",
-            user: "BBfitness",
-            avatar: "/placeholder.svg?height=40&width=40",
-            content: "💪 Desafio da semana: 30 minutos de cardio por dia! Quem está dentro?",
-            image: "/placeholder.svg?height=300&width=500",
-            likes: 245,
-            comments: 32,
-            shares: 18,
-            isVerified: true,
-            isRepost: true,
-            originalUser: "BBfitness",
-            originalAvatar: "/placeholder.svg?height=40&width=40",
-          },
-        ]
+  // Carrega posts
+  const { data: postsData } = await supabase
+    .from("posts")
+    .select("*")
+    .eq("user_id", profile.id)
+    .order("created_at", { ascending: false })
 
-        setUserPosts(mockPosts)
-        setUserReposts(mockReposts)
-        setLoading(false)
-      }, 1000)
-    }
+  // Conta seguidores reais
+  const { count: followersCount } = await supabase
+    .from("follows")
+    .select("*", { count: "exact", head: true })
+    .eq("following_id", profile.id)
+
+  // Conta seguindo reais
+  const { count: followingCount } = await supabase
+    .from("follows")
+    .select("*", { count: "exact", head: true })
+    .eq("follower_id", profile.id)
+
+  // Atualiza os dados reais
+  setUserProfile({
+    username: profile.username,
+    displayName: profile.full_name,
+    avatar: profile.avatar_url,
+    bio: profile.bio,
+    followers: followersCount || 0,
+    following: followingCount || 0,
+    postsCount: postsData?.length || 0,
+    isVerified: profile.is_verified,
+    isPro: profile.is_premium,
+    isCurrentUser: profile.id === currentUserId,
+  })
+
+  setUserPosts(postsData || [])
+}
 
     loadUserProfile()
   }, [username])
 
-  const handleFollow = () => {
-    setIsFollowing(!isFollowing)
-    if (!isFollowing) {
-      setUserProfile((prev) => (prev ? { ...prev, followers: prev.followers + 1 } : null))
-    } else {
-      setUserProfile((prev) => (prev ? { ...prev, followers: prev.followers - 1 } : null))
+  const handleFollow = async () => {
+  const { data: authData } = await supabase.auth.getUser()
+  const currentUserId = authData?.user?.id
+
+  if (!currentUserId || !userProfile) return
+
+  if (!isFollowing) {
+    // Criar o "follow"
+    const { error } = await supabase.from("follows").insert([
+      {
+        follower_id: currentUserId,
+        following_id: userProfile.id, // você precisa ter esse ID armazenado
+      },
+    ])
+
+    if (error) {
+      console.error("Erro ao seguir:", error)
+      return
     }
+
+    setIsFollowing(true)
+    setUserProfile((prev) => (prev ? { ...prev, followers: prev.followers + 1 } : null))
+  } else {
+    // Remover o "follow"
+    const { error } = await supabase
+      .from("follows")
+      .delete()
+      .eq("follower_id", currentUserId)
+      .eq("following_id", userProfile.id)
+
+    if (error) {
+      console.error("Erro ao deixar de seguir:", error)
+      return
+    }
+
+    setIsFollowing(false)
+    setUserProfile((prev) => (prev ? { ...prev, followers: prev.followers - 1 } : null))
   }
+}
 
   const handleEditProfile = () => {
     router.push("/profile/edit")
