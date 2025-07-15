@@ -2115,7 +2115,7 @@ const { error: updateError } = await supabase
                             <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                               <span className="flex items-center gap-1">
                                 <Users className="w-3 h-3" />
-                                {notification.recipients.toLocaleString()} usuários
+                                {notification.recipients || 1} usuários
                               </span>
                               {notification.status === "sent" && notification.sentAt && (
                                 <span className="flex items-center gap-1">
