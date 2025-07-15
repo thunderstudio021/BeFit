@@ -51,6 +51,7 @@ export default function FitzPage() {
           caption,
           file,
           link,
+          type,
           "isVisible"
         `)
         .eq('isVisible', true)
@@ -72,7 +73,7 @@ export default function FitzPage() {
           likes: 0,
           comments: 0,
           shares: 0,
-          isVideo: item.file.startsWith('data:video'),
+          isVideo: item.type == "video",
           externalLink: item.link,
           linkText: 'Saiba mais',
         }))

@@ -106,92 +106,89 @@ export default function CreatePost({ location, onClose, className, onPostCreated
   }
 
   const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const file = e.target.files?.[0]
+  if (!file) return
 
-    // Verificar tipos de arquivo permitidos
-    const allowedTypes = [
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "image/heic",
-      "image/heif",
-      "video/mp4",
-      "video/quicktime",
-      "video/x-msvideo",
-    ]
+  const allowedTypes = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/heic",
+    "image/heif",
+    "video/mp4",
+    "video/quicktime",
+    "video/x-msvideo",
+  ]
 
-    if (!allowedTypes.includes(file.type)) {
-      const event = new CustomEvent("showNotification", {
+  if (!allowedTypes.includes(file.type)) {
+    window.dispatchEvent(
+      new CustomEvent("showNotification", {
         detail: {
           type: "error",
           title: "Formato Inválido! ⚠️",
           message: "Use .jpg, .png, .heic, .mp4 ou .mov",
         },
       })
-      window.dispatchEvent(event)
-      return
-    }
+    )
+    return
+  }
 
-    // Verificar tamanho do arquivo (máximo 10MB para evitar problemas de storage)
-    const maxSize = 10 * 1024 * 1024 // 10MB
-    if (file.size > maxSize) {
-      const event = new CustomEvent("showNotification", {
+  const maxSize = 10 * 1024 * 1024
+  if (file.size > maxSize) {
+    window.dispatchEvent(
+      new CustomEvent("showNotification", {
         detail: {
           type: "error",
           title: "Arquivo Muito Grande! ⚠️",
           message: "Tamanho máximo: 10MB",
         },
       })
-      window.dispatchEvent(event)
-      return
-    }
-
-    setSelectedMedia(file)
-    setActiveTab("media")
-
-    // Criar preview com qualidade reduzida para economizar espaço
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const result = e.target?.result as string
-
-      // Para imagens, reduzir qualidade se for muito grande
-      if (file.type.startsWith("image/")) {
-        const img = new window.Image()
-        img.onload = () => {
-          const canvas = document.createElement("canvas")
-          const ctx = canvas.getContext("2d")
-
-          // Redimensionar se a imagem for muito grande
-          const maxWidth = 800
-          const maxHeight = 600
-          let { width, height } = img
-
-          if (width > maxWidth || height > maxHeight) {
-            const ratio = Math.min(maxWidth / width, maxHeight / height)
-            width *= ratio
-            height *= ratio
-          }
-
-          canvas.width = width
-          canvas.height = height
-
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height)
-            // Usar qualidade reduzida para economizar espaço
-            const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7)
-            setMediaPreview(compressedDataUrl)
-          } else {
-            setMediaPreview(result)
-          }
-        }
-        img.src = result
-      } else {
-        setMediaPreview(result)
-      }
-    }
-    reader.readAsDataURL(file)
+    )
+    return
   }
+
+  setSelectedMedia(file)
+  setActiveTab("media")
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const result = e.target?.result as string
+
+    if (file.type.startsWith("image/")) {
+      const img = new window.Image()
+      img.onload = () => {
+        const canvas = document.createElement("canvas")
+        const ctx = canvas.getContext("2d")
+
+        const maxWidth = 800
+        const maxHeight = 600
+        let { width, height } = img
+
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height)
+          width *= ratio
+          height *= ratio
+        }
+
+        canvas.width = width
+        canvas.height = height
+
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height)
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7)
+          setMediaPreview(compressedDataUrl)
+        } else {
+          setMediaPreview(result)
+        }
+      }
+      img.src = result
+    } else {
+      setMediaPreview(result)
+    }
+  }
+  reader.readAsDataURL(file)
+}
+
 
   const handleMediaButtonClick = () => {
     setActiveTab("media")
@@ -219,138 +216,118 @@ export default function CreatePost({ location, onClose, className, onPostCreated
   }
 
   const handlePublish = async () => {
-    try {
-      const currentUser = localStorage.getItem("currentUser") || "João Silva"
+  try {
+    const currentUser = localStorage.getItem("currentUser") || "João Silva"
 
-      // Validar se há conteúdo para publicar
-      if (isPublishDisabled()) {
-        return
-      }
+    if (isPublishDisabled()) return
 
-      // Criar o novo post
-      const newPost = {
-        id: `post-${Date.now()}`,
-        type: activeTab === "media" ? (selectedMedia?.type.startsWith("video") ? "video" : "photo") : activeTab,
-        user: currentUser,
-        avatar: "/placeholder.svg?height=40&width=40",
-        content: postText,
-        image_url: activeTab === "media" && selectedMedia?.type.startsWith("image") ? mediaPreview : undefined,
-        video_url: activeTab === "media" && selectedMedia?.type.startsWith("video") ? mediaPreview : undefined,
-        background_color: activeTab === "status" ? selectedColor : undefined,
-        poll_options: activeTab === "poll" ? pollOptions.filter((opt) => opt.trim() !== "") : undefined,
-        challengeTitle: activeTab === "challenge" ? challengeTitle : undefined,
-        challengeDays: activeTab === "challenge" ? challengeDays : undefined,
-        likes_count: 0,
-        comments_count: 0,
-        shares_count: 0,
-        is_premium_content: false,
-        updated_at: new Date().toISOString(),
-        createdAt: Date.now(),
-      }
+    let uploadedMediaUrl: string | null = null
 
-      const { error: insertError } = await supabase
-        .from("posts")
-        .insert({
-          user_id: user?.id,
-          type: activeTab === "media" ? (selectedMedia?.type.startsWith("video") ? "video" : "photo") : activeTab,
-          content: postText,
-          image_url: activeTab === "media" && selectedMedia?.type.startsWith("image") ? mediaPreview : undefined,
-          video_url: activeTab === "media" && selectedMedia?.type.startsWith("video") ? mediaPreview : undefined,
-          background_color: activeTab === "status" ? selectedColor : undefined,
-          poll_options: activeTab === "poll" ? pollOptions.filter((opt) => opt.trim() !== "") : undefined,
-          likes_count: 0,
-          comments_count: 0,
-          shares_count: 0,
-          is_premium_content: false,
-          updated_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          location
+    // Upload da mídia para o Supabase Storage
+    if (activeTab === "media" && selectedMedia) {
+      const fileExt = selectedMedia.name.split(".").pop()
+      const filePath = `${user?.id || "anonymous"}/${Date.now()}.${fileExt}`
+
+      const { error: uploadError } = await supabase.storage
+        .from("befit")
+        .upload(filePath, selectedMedia, {
+          cacheControl: "3600",
+          upsert: false,
         })
 
-      if (insertError) {
-        console.error("Erro ao inserir post:", insertError)
-        // Notificação de erro específica
-        const errorEvent = new CustomEvent("showNotification", {
-          detail: {
-            type: "error",
-            title: "Erro ao Publicar! ❌",
-            message: insertError ? insertError : "Ocorreu um erro ao publicar seu post. Tente novamente.",
-          },
-        })
-        window.dispatchEvent(errorEvent)
-        }
+      if (uploadError) throw new Error("Erro ao subir mídia: " + uploadError.message)
 
+      const { data: urlData } = supabase.storage.from("befit").getPublicUrl(filePath)
+      uploadedMediaUrl = urlData.publicUrl
+    }
 
-      // Carregar posts existentes
-      const savedPosts = JSON.parse(localStorage.getItem("userPosts") || "[]")
+    const { error: insertError } = await supabase.from("posts").insert({
+      user_id: user?.id,
+      type: activeTab === "media" ? (selectedMedia?.type.startsWith("video") ? "video" : "photo") : activeTab,
+      content: postText,
+      image_url: activeTab === "media" && selectedMedia?.type.startsWith("image") ? uploadedMediaUrl : undefined,
+      video_url: activeTab === "media" && selectedMedia?.type.startsWith("video") ? uploadedMediaUrl : undefined,
+      background_color: activeTab === "status" ? selectedColor : undefined,
+      poll_options: activeTab === "poll" ? pollOptions.filter((opt) => opt.trim() !== "") : (activeTab === "challenge" ? {title: challengeTitle, days: challengeDays} : undefined),
+      likes_count: 0,
+      comments_count: 0,
+      shares_count: 0,
+      is_premium_content: false,
+      updated_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      location,
+    })
 
-      // Adicionar novo post no início
-      const updatedPosts = [newPost, ...savedPosts]
+    if (insertError) {
+      throw insertError
+    }
 
-      // Limpar posts antigos se necessário
-      const cleanedPosts = cleanupOldPosts(updatedPosts)
+    const newPost = {
+      id: `post-${Date.now()}`,
+      type: activeTab === "media" ? (selectedMedia?.type.startsWith("video") ? "video" : "photo") : activeTab,
+      user: currentUser,
+      avatar: "/placeholder.svg?height=40&width=40",
+      content: postText,
+      image_url: activeTab === "media" && selectedMedia?.type.startsWith("image") ? uploadedMediaUrl : undefined,
+      video_url: activeTab === "media" && selectedMedia?.type.startsWith("video") ? uploadedMediaUrl : undefined,
+      background_color: activeTab === "status" ? selectedColor : undefined,
+      poll_options: activeTab === "poll" ? pollOptions.filter((opt) => opt.trim() !== "") : undefined,
+      challengeTitle: activeTab === "challenge" ? challengeTitle : undefined,
+      challengeDays: activeTab === "challenge" ? challengeDays : undefined,
+      likes_count: 0,
+      comments_count: 0,
+      shares_count: 0,
+      is_premium_content: false,
+      updated_at: new Date().toISOString(),
+      createdAt: Date.now(),
+    }
 
-      // Tentar salvar no localStorage
-      const saved = saveToLocalStorage("userPosts", cleanedPosts)
+    const savedPosts = JSON.parse(localStorage.getItem("userPosts") || "[]")
+    const updatedPosts = [newPost, ...savedPosts]
+    const cleanedPosts = cleanupOldPosts(updatedPosts)
+    const saved = saveToLocalStorage("userPosts", cleanedPosts)
 
-      if (!saved) {
-        throw new Error("Não foi possível salvar o post. Espaço de armazenamento insuficiente.")
-      }
+    if (!saved) throw new Error("Não foi possível salvar o post. Espaço de armazenamento insuficiente.")
 
-      console.log("Post salvo:", newPost)
+    addFitcoin(user, 1)
 
-      // Adicionar 1 fitcoin por fazer uma publicação
-      addFitcoin(user, 1)
-
-      // Disparar evento para notificação de fitcoin
-      const fitcoinEvent = new CustomEvent("showFitcoinNotification", {
-        detail: {
-          amount: 1,
-          reason: "Publicar post",
-        },
+    window.dispatchEvent(
+      new CustomEvent("showFitcoinNotification", {
+        detail: { amount: 1, reason: "Publicar post" },
       })
-      window.dispatchEvent(fitcoinEvent)
+    )
 
-      // Notificação padrão para post publicado
-      const event = new CustomEvent("showNotification", {
-        detail: {
-          type: "success",
-          title: "Post Publicado! 📝",
-          message: "Seu post foi publicado com sucesso!",
-        },
+    window.dispatchEvent(
+      new CustomEvent("showNotification", {
+        detail: { type: "success", title: "Post Publicado! 📝", message: "Seu post foi publicado com sucesso!" },
       })
-      window.dispatchEvent(event)
+    )
 
-      // Limpar formulário
-      setPostText("")
-      setSelectedColor(null)
-      setSelectedMedia(null)
-      setMediaPreview(null)
-      setPollOptions(["", ""])
-      setChallengeTitle("")
-      setChallengeDays(7)
-      setActiveTab("text")
+    setPostText("")
+    setSelectedColor(null)
+    setSelectedMedia(null)
+    setMediaPreview(null)
+    setPollOptions(["", ""])
+    setChallengeTitle("")
+    setChallengeDays(7)
+    setActiveTab("text")
 
-      // Notificar o componente pai para atualizar o feed
-      if (onPostCreated) {
-        onPostCreated()
-      }
-
-      if (onClose) onClose()
-    } catch (error) {
-      console.error("Erro ao publicar post:", error)
-
-      // Notificação de erro específica
-      const errorEvent = new CustomEvent("showNotification", {
+    onPostCreated?.()
+    onClose?.()
+  } catch (error) {
+    console.error("Erro ao publicar post:", error)
+    window.dispatchEvent(
+      new CustomEvent("showNotification", {
         detail: {
           type: "error",
           title: "Erro ao Publicar! ❌",
-          message: error instanceof Error ? error.message : "Ocorreu um erro ao publicar seu post. Tente novamente.",
+          message: error instanceof Error ? error.message : "Erro ao publicar. Tente novamente.",
         },
       })
-      window.dispatchEvent(errorEvent)
-    }
+    )
   }
+}
+
 
   const isPublishDisabled = () => {
     switch (activeTab) {

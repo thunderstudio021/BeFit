@@ -25,7 +25,7 @@ import AppLayout from "@/components/app-layout"
 import { useEffect, useState } from "react"
 import { useFitcoin } from "@/hooks/use-fitcoin"
 import { supabase } from "@/lib/supabase"
-import { useUser } from "@supabase/auth-helpers-react"
+import { useUser } from "@/hooks/useUser"
 
 interface MealItem {
   id: number
@@ -69,13 +69,7 @@ export default function PlannerPage() {
   const today = new Date().getDay()
   const currentDate = new Date()
 
-  // Estados para água
-  const [waterIntake, setWaterIntake] = useState(0)
-  const [waterGoal, setWaterGoal] = useState(2000) // 2L em ml
-  const [showWaterCelebration, setShowWaterCelebration] = useState(false)
-  const [showWaterSettings, setShowWaterSettings] = useState(false)
-  const [tempWaterGoal, setTempWaterGoal] = useState(2)
-  const { addFitcoin } = useFitcoin()
+ 
 
   // Estados para notificações
   const [notification, setNotification] = useState<{
@@ -86,7 +80,15 @@ export default function PlannerPage() {
   }>({ show: false, type: "success", title: "", message: "" })
 
   const [date, setDate] = useState<string>(() => new Date().toISOString().split("T")[0])
-  const user = useUser();
+  const {user, profile} = useUser();
+
+   // Estados para água
+  const [waterIntake, setWaterIntake] = useState(0)
+  const [waterGoal, setWaterGoal] = useState(profile?.water * 1000) // 2L em ml
+  const [showWaterCelebration, setShowWaterCelebration] = useState(false)
+  const [showWaterSettings, setShowWaterSettings] = useState(false)
+  const [tempWaterGoal, setTempWaterGoal] = useState(2)
+  const { addFitcoin } = useFitcoin()
 
 
   // Estados para desafios
@@ -245,6 +247,16 @@ function getRandomPhrase() {
 
       const challanges = await fetchUserChallenges(user.id);
       setChallenges(challanges);
+
+      const water = await getWaterTotal(user.id, date);
+      setWaterIntake(water)
+
+      const { data: profile2 } = await supabase
+        .from("profiles")
+        .select("water")
+        .eq("id", user.id)
+        console.log('profile2', profile2);
+      setWaterGoal(profile2[0].water * 1000)
     }
 
   useEffect(() => {
@@ -288,9 +300,19 @@ function getRandomPhrase() {
   }
 
   // Adicionar água
-  const addWater = () => {
+  // Adicionar água
+  const addWater = async () => {
     const newIntake = waterIntake + 250
     setWaterIntake(newIntake)
+
+    const today = date;
+
+    // Upsert ingestão de água
+    await supabase.rpc("upsert_water_challenge", {
+      p_user_id: user.id,
+      p_date: today,
+      p_amount: 250
+    })
 
     if (newIntake >= waterGoal && waterIntake < waterGoal) {
       setShowWaterCelebration(true)
@@ -301,8 +323,9 @@ function getRandomPhrase() {
   }
 
   // Atualizar meta de água
-  const updateWaterGoal = () => {
+  const updateWaterGoal = async () => {
     setWaterGoal(tempWaterGoal * 1000)
+    await supabase.from("profiles").update({water: tempWaterGoal * 1000}).eq("id", user.id)
     setShowWaterSettings(false)
     showNotification("success", "Meta Atualizada! ⚙️", `Nova meta: ${tempWaterGoal}L por dia`)
   }
@@ -317,6 +340,22 @@ function getRandomPhrase() {
     console.error('Erro ao registrar check:', error)
     throw error
   }
+}
+
+const getWaterTotal = async (userId: string, date: string) => {
+  const { data, error } = await supabase
+    .from("water_challange")
+    .select("total")
+    .eq("user_id", userId)
+    .eq("date", date)
+    .single()
+
+  if (error) {
+    console.error("Erro ao buscar total de água:", error)
+    return 0
+  }
+
+  return data.total || 0
 }
 
 

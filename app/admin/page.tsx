@@ -1,5 +1,5 @@
 "use client"
-
+import Image from "next/image"
 import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -287,77 +287,112 @@ const [adminSummary, setAdminSummary] = useState<AdminSummary>({
     getData();
   }, []);
 
-  const handleFileUpload = (file: File, setData:(param:any) => void) => {
-    const reader = new FileReader()
+  const handleFileUpload = async (
+  file: File,
+  setData: (param: any) => void
+) => {
+  try {
+    const fileExt = file.name.split(".").pop()
+    const filePath = `uploads/${Date.now()}-${file.name}`
 
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      setData(base64);
-      
-      console.log("Arquivo convertido:", {
-        base64,
+    const { error: uploadError } = await supabase.storage
+      .from("befit") // Bucket definido
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
       })
-      // Aqui você pode enviar para sua API, armazenar no estado, etc.
+
+    if (uploadError) {
+      console.error("Erro ao fazer upload para Supabase:", uploadError)
+      return
     }
 
-    reader.onerror = (error) => {
-      console.error("Erro ao ler o arquivo:", error)
-    }
+    const { data: urlData } = supabase.storage
+      .from("befit")
+      .getPublicUrl(filePath)
 
-    reader.readAsDataURL(file)
+    const publicUrl = urlData?.publicUrl
+    if (publicUrl) {
+      setData(publicUrl)
+      console.log("Arquivo enviado para Supabase:", publicUrl)
+    }
+  } catch (err) {
+    console.error("Erro ao enviar arquivo:", err)
   }
+}
 
 
 
   // Componente de upload reutilizável - MODIFICADO
-  const FileUploadArea = ({ setData,uploadKey, accept, title, description, color = "purple", multiple = false }) => {
-    const isUploading = uploadingFiles[uploadKey]
-    const uploadedFile = uploadedFiles[uploadKey]
+  const FileUploadArea = ({
+  setData,
+  uploadKey,
+  accept,
+  title,
+  description,
+  color = "purple",
+  multiple = false,
+}) => {
+  const isUploading = uploadingFiles[uploadKey]
+  const uploadedFile = uploadedFiles[uploadKey]
 
-    const colorClasses = {
-      purple: "border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/10 text-purple-500",
-      green: "border-green-500/30 bg-green-500/5 hover:bg-green-500/10 text-green-500",
-      blue: "border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 text-blue-500",
-      orange: "border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/10 text-orange-500",
-    }
-    
-
-    const handleClick = () => {
-      const input = document.createElement("input")
-      input.type = "file"
-      input.accept = accept
-      input.multiple = multiple
-      input.onchange = (e) => {
-        const file = e.target.files?.[0]
-        if (file) handleFileUpload(file, setData)
-        setUploadedFiles((prev) => ({ ...prev, [uploadKey]: true }))  
-        
-      }
-      input.click()
-    }
-
-    return (
-      <div
-        className={`border-2 border-dashed rounded-lg p-4 sm:p-6 text-center transition-colors cursor-pointer group/upload ${colorClasses[color]}`}
-        onClick={handleClick}
-      >
-        <div className="relative pointer-events-none">
-          {isUploading ? (
-            <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-full bg-current/20 flex items-center justify-center">
-              <div className="w-6 h-6 sm:w-8 sm:h-8 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          ) : (
-            <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-full bg-current/20 flex items-center justify-center group-hover/upload:scale-110 transition-transform">
-              <Upload className="w-6 h-6 sm:w-8 sm:h-8" />
-            </div>
-          )}
-          <p className="text-xs sm:text-sm font-medium">{isUploading ? "Enviando..." : title}</p>
-          <p className="text-xs text-muted-foreground mt-1">{description}</p>
-          {uploadedFile && <p className="text-xs text-green-500 mt-2 font-medium">✅ Arquivo enviado!</p>}
-        </div>
-      </div>
-    )
+  const colorClasses = {
+    purple: "border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/10 text-purple-500",
+    green: "border-green-500/30 bg-green-500/5 hover:bg-green-500/10 text-green-500",
+    blue: "border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 text-blue-500",
+    orange: "border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/10 text-orange-500",
   }
+
+  const handleClick = () => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = accept
+    input.multiple = multiple
+
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+
+      setUploadingFiles((prev) => ({ ...prev, [uploadKey]: true }))
+
+      await handleFileUpload(file, setData)
+
+      setUploadingFiles((prev) => ({ ...prev, [uploadKey]: false }))
+      setUploadedFiles((prev) => ({ ...prev, [uploadKey]: true }))
+    }
+
+    input.click()
+  }
+
+  return (
+    <div
+      className={`border-2 border-dashed rounded-lg p-4 sm:p-6 text-center transition-colors cursor-pointer group/upload ${colorClasses[color]}`}
+      onClick={handleClick}
+    >
+      <div className="relative pointer-events-none">
+        {isUploading ? (
+          <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-full bg-current/20 flex items-center justify-center">
+            <div className="w-6 h-6 sm:w-8 sm:h-8 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : (
+          <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-full bg-current/20 flex items-center justify-center group-hover/upload:scale-110 transition-transform">
+            <Upload className="w-6 h-6 sm:w-8 sm:h-8" />
+          </div>
+        )}
+        <p className="text-xs sm:text-sm font-medium">
+          {isUploading ? "Enviando..." : title}
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">{description}</p>
+        {uploadedFile && (
+          <p className="text-xs text-green-500 mt-2 font-medium">
+            ✅ Arquivo enviado!
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 
   // Estados para modais e edição
   const [editingUser, setEditingUser] = useState<any>(null)
@@ -680,10 +715,12 @@ useEffect(() => {
     alert(`Usuário ${editingUser.id ? "atualizado" : "criado"} com sucesso!`)
     if(editingUser.id){
       console.log(editingUser);
+      const { id, password, ...userWithoutPassword } = editingUser;
+
       const { error: updateError } = await supabase
         .from("profiles")
-        .update(editingUser)
-        .eq("id", editingUser.id)
+        .update(userWithoutPassword)
+        .eq("id", editingUser.id);
 
         console.log(updateError);
     }else{
@@ -693,9 +730,11 @@ useEffect(() => {
       })
       if (signUpError) return 0;
 
+      const { id, password, ...userWithoutPassword } = editingUser;
+
       const { error: updateError } = await supabase
       .from("profiles")
-      .update(editingUser)
+      .update(userWithoutPassword)
       .eq("id", data.user?.id)
 
     }
@@ -705,15 +744,33 @@ useEffect(() => {
     getUsers();
   }
 
-  const handleUserDelete = (userId: number) => {
-    if (confirm("Tem certeza que deseja excluir este usuário?")) {
-      alert("Usuário excluído com sucesso!")
-    }
-  }
+  const handleUserDelete = async (userId: string) => {
+    const confirmDelete = confirm("Tem certeza que deseja excluir este usuário?");
+    if (!confirmDelete) return;
 
-  const handleUserBlock = (userId: number, isBlocked: boolean) => {
-    alert(`Usuário ${isBlocked ? "desbloqueado" : "bloqueado"} com sucesso!`)
-  }
+    // Exclui da auth.users, o que também remove da tabela profiles via CASCADE
+    const { error } = await supabase.auth.admin.deleteUser(userId);
+
+    if (error) {
+      alert("Erro ao excluir usuário: " + error.message);
+    } else {
+      alert("Usuário excluído com sucesso!");
+    }
+  };
+
+  const handleUserBlock = async (userId: string, isBlocked: boolean) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_blocked: !isBlocked })
+      .eq("id", userId);
+
+    if (error) {
+      alert("Erro ao atualizar status de bloqueio: " + error.message);
+    } else {
+      alert(`Usuário ${isBlocked ? "desbloqueado" : "bloqueado"} com sucesso!`);
+    }
+  };
+
 
   // Funções para gerenciar produtos
   const handleProductEdit = (product: any) => {
@@ -759,11 +816,21 @@ useEffect(() => {
     getProducts();
   }
 
-  const handleProductDelete = (productId: number) => {
-    if (confirm("Tem certeza que deseja excluir este produto?")) {
-      alert("Produto excluído com sucesso!")
+  const handleProductDelete = async (productId: string) => {
+    const confirmDelete = confirm("Tem certeza que deseja excluir este produto?");
+    if (!confirmDelete) return;
+
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", productId);
+
+    if (error) {
+      alert("Erro ao excluir produto: " + error.message);
+    } else {
+      alert("Produto excluído com sucesso!");
     }
-  }
+  };
 
   // Funções para gerenciar Fitz
   const handleFitzEdit = (fitz: any) => {
@@ -1286,6 +1353,7 @@ const { error: updateError } = await supabase
 
         <Tabs defaultValue="stats" value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="relative">
+            { user?.profile?.user_type == "admin" && (
             <TabsList className="flex w-full overflow-x-auto overflow-y-hidden mb-4 sm:mb-6 bg-card/50 backdrop-blur-sm border border-border/50 p-1 rounded-xl gap-1 scrollbar-hide">
               <TabsTrigger
                 value="stats"
@@ -1337,6 +1405,33 @@ const { error: updateError } = await supabase
                 Anúncios
               </TabsTrigger>
             </TabsList>
+            )}
+
+            { user?.profile?.user_type == "producer" && (
+            <TabsList className="flex w-full overflow-x-auto overflow-y-hidden mb-4 sm:mb-6 bg-card/50 backdrop-blur-sm border border-border/50 p-1 rounded-xl gap-1 scrollbar-hide">
+              <TabsTrigger
+                value="stats"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-blue-500 data-[state=active]:text-white rounded-lg py-2 px-3 transition-all duration-300 data-[state=active]:shadow-glow-purple text-xs whitespace-nowrap flex-shrink-0"
+              >
+                <BarChart2 className="w-3 h-3 mr-1" />
+                Estatísticas
+              </TabsTrigger>
+              <TabsTrigger
+                value="area-premium"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-blue-500 data-[state=active]:text-white rounded-lg py-2 px-3 transition-all duration-300 data-[state=active]:shadow-glow-purple text-xs whitespace-nowrap flex-shrink-0"
+              >
+                <Crown className="w-3 h-3 mr-1" />
+                Área Premium
+              </TabsTrigger>
+              <TabsTrigger
+                value="fitz"
+                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-blue-500 data-[state=active]:text-white rounded-lg py-2 px-3 transition-all duration-300 data-[state=active]:shadow-glow-purple text-xs whitespace-nowrap flex-shrink-0"
+              >
+                <Video className="w-3 h-3 mr-1" />
+                Fitz
+              </TabsTrigger>
+            </TabsList>
+            )}
 
             {/* Estatísticas */}
             <TabsContent value="stats" className="space-y-4 sm:space-y-6 mt-2">
@@ -2397,8 +2492,8 @@ const { error: updateError } = await supabase
                         type="radio"
                         id="produtor"
                         name="userType"
-                        value="produtor"
-                        checked={editingUser.user_type === "produtor"}
+                        value="producer"
+                        checked={editingUser.user_type === "producer"}
                         onChange={(e) => setEditingUser({ ...editingUser, user_type: e.target.value })}
                         className="w-4 h-4 text-blue-600"
                       />

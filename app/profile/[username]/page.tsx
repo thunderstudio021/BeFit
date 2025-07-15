@@ -59,56 +59,76 @@ export default function ProfilePage() {
 
   // Simular dados do usuário
   useEffect(() => {
-    const loadUserProfile = async () => {
-  const { data: authData } = await supabase.auth.getUser()
-  const currentUserId = authData?.user?.id
+  const loadUserProfile = async () => {
+    const { data: authData } = await supabase.auth.getUser()
+    const currentUserId = authData?.user?.id
 
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("id, username, full_name, avatar_url, bio, followers_count, following_count, posts_count, is_verified, is_premium")
-    .ilike("username", username)
-    .maybeSingle()
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, username, full_name, avatar_url, bio, followers_count, following_count, posts_count, is_verified, is_premium")
+      .ilike("username", username)
+      .maybeSingle()
 
-  if (!profile) return
+    if (!profile) return
 
-  // Carrega posts
-  const { data: postsData } = await supabase
-    .from("posts")
-    .select("*")
-    .eq("user_id", profile.id)
-    .order("created_at", { ascending: false })
+    // Carrega os posts próprios do usuário
+    const { data: userPosts } = await supabase
+      .from("posts")
+      .select("*")
+      .eq("user_id", profile.id)
 
-  // Conta seguidores reais
-  const { count: followersCount } = await supabase
-    .from("follows")
-    .select("*", { count: "exact", head: true })
-    .eq("following_id", profile.id)
+    // Carrega os reposts do usuário
+    const { data: reposts } = await supabase
+      .from("post_reposts")
+      .select("created_at, posts(*)")
+      .eq("user_id", profile.id)
 
-  // Conta seguindo reais
-  const { count: followingCount } = await supabase
-    .from("follows")
-    .select("*", { count: "exact", head: true })
-    .eq("follower_id", profile.id)
+    // Formata os reposts para parecerem com posts normais
+    const repostsAsPosts = reposts?.map((repost) => ({
+      ...repost.posts,
+      created_at: repost.created_at, // usa a data do repost
+      repostedBy: profile.username,
+      isRepost: true,
+    })) || []
 
-  // Atualiza os dados reais
-  setUserProfile({
-    username: profile.username,
-    displayName: profile.full_name,
-    avatar: profile.avatar_url,
-    bio: profile.bio,
-    followers: followersCount || 0,
-    following: followingCount || 0,
-    postsCount: postsData?.length || 0,
-    isVerified: profile.is_verified,
-    isPro: profile.is_premium,
-    isCurrentUser: profile.id === currentUserId,
-  })
+    // Junta posts normais com reposts e ordena por data
+    const combinedPosts = [...(userPosts || []), ...repostsAsPosts].sort(
+      (a, b) => new Date(b.created_at) - new Date(a.created_at)
+    )
 
-  setUserPosts(postsData || [])
-}
+    // Conta seguidores
+    const { count: followersCount } = await supabase
+      .from("follows")
+      .select("*", { count: "exact", head: true })
+      .eq("following_id", profile.id)
 
-    loadUserProfile()
-  }, [username])
+    // Conta seguindo
+    const { count: followingCount } = await supabase
+      .from("follows")
+      .select("*", { count: "exact", head: true })
+      .eq("follower_id", profile.id)
+
+    // Atualiza perfil
+    setUserProfile({
+      username: profile.username,
+      displayName: profile.full_name,
+      avatar: profile.avatar_url,
+      bio: profile.bio,
+      followers: followersCount || 0,
+      following: followingCount || 0,
+      postsCount: userPosts?.length || 0, // apenas posts originais
+      isVerified: profile.is_verified,
+      isPro: profile.is_premium,
+      isCurrentUser: profile.id === currentUserId,
+    })
+
+    // Atualiza feed do usuário
+    setUserPosts(combinedPosts)
+    setLoading(false)
+  }
+
+  loadUserProfile()
+}, [username])
 
   const handleFollow = async () => {
   const { data: authData } = await supabase.auth.getUser()
@@ -284,7 +304,7 @@ export default function ProfilePage() {
                 <FeedPost
                   key={post.id}
                   type={post.type}
-                  user={post.user}
+                  user={username}
                   avatar={post.avatar}
                   content={post.content}
                   image={post.image}
@@ -319,7 +339,7 @@ export default function ProfilePage() {
                   )}
                   <FeedPost
                     type={post.type}
-                    user={post.user}
+                    user={username}
                     avatar={post.avatar}
                     content={post.content}
                     image={post.image}
@@ -329,8 +349,13 @@ export default function ProfilePage() {
                     likes={post.likes}
                     comments={post.comments}
                     shares={post.shares}
-                    isVerified={post.isVerified}
-                  />
+                    isVerified={post.isVerified} 
+                    postId={post.id} 
+                    _liked={false} 
+                    alreadyLiked={false} 
+                    _reposted={false} 
+                    username={username} 
+                    videoUrl={post.videoThumbnail}                  />
                 </div>
               ))
             ) : (

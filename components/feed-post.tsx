@@ -247,43 +247,59 @@ export default function FeedPost({
   }
 
   const handleLike = async () => {
-    const newLiked = !liked
-    const newCount = newLiked ? likeCount + 1 : likeCount - 1
-    
-    setLiked(newLiked)
-    setLikeCount(newCount)
-    //saveLikes(newLiked, newCount)
+  if (!User?.id || !postId) return;
 
-    if (newLiked) {
-      if(!alreadyLiked){
-        const { data, error } = await supabase
-        .from("likes")
-        .insert({user_id:User?.id, post_id:postId});
-        addFitcoin(User, 1)
-      }else{
-        const { data, error } = await supabase
-        .from("likes")
-        .update({like:true})
-        .eq('user_id', User?.id)
-        .eq('post_id', postId);
-        await supabase
-        .from("posts")
-        .update({likes_count:newCount})
-        .eq('id', postId);
-        }
-    }else{
-      const { data, error } = await supabase
+  // Verifica se já existe like do usuário nesse post
+  const { data: existingLike, error: likeError } = await supabase
+    .from("likes")
+    .select("id, like")
+    .eq("user_id", User.id)
+    .eq("post_id", postId)
+    .maybeSingle();
+
+  if (likeError) {
+    console.error("Erro ao verificar like existente:", likeError);
+    return;
+  }
+
+  const alreadyLiked = existingLike?.like === true;
+  const newLiked = !alreadyLiked;
+  const newCount = newLiked ? likeCount + 1 : likeCount - 1;
+
+  setLiked(newLiked);
+  setLikeCount(newCount);
+
+  if (existingLike) {
+    // Se já existe, apenas atualiza
+    const { error: updateError } = await supabase
       .from("likes")
-      .update({like:false})
-      .eq('user_id', User?.id)
-      .eq('post_id', postId);
+      .update({ like: newLiked })
+      .eq("id", existingLike.id);
 
-      await supabase
-      .from("posts")
-      .update({likes_count:newCount})
-      .eq('id', postId);
+    if (updateError) console.error("Erro ao atualizar like:", updateError);
+  } else {
+    // Se ainda não curtiu, cria novo like
+    const { error: insertError } = await supabase
+      .from("likes")
+      .insert({ user_id: User.id, post_id: postId, like: true });
+
+    if (insertError) {
+      console.error("Erro ao inserir like:", insertError);
+    } else {
+      addFitcoin(User, 1);
     }
   }
+
+  // Atualiza contador de likes no post
+  const { error: postUpdateError } = await supabase
+    .from("posts")
+    .update({ likes_count: newCount })
+    .eq("id", postId);
+
+  if (postUpdateError) {
+    console.error("Erro ao atualizar contador de likes:", postUpdateError);
+  }
+};
 
   const handleRepost = async () => {
     if (!reposted) {
@@ -447,11 +463,31 @@ export default function FeedPost({
   }
 
   // Callback para quando um comentário é adicionado
-  const handleCommentAdded = () => {
-    const newCount = commentCount + 1
-    setCommentCount(newCount)
-    addFitcoin(User, 1) // Ganhar Fitcoin por comentar
-  }
+  const handleCommentAdded = async () => {
+    if (!User?.id || !postId) return;
+
+    // Verifica se o usuário já comentou no post
+    const { data: existingComments, error } = await supabase
+      .from("comments")
+      .select("id")
+      .eq("user_id", User.id)
+      .eq("post_id", postId)
+      .limit(1);
+
+    if (error) {
+      console.error("Erro ao verificar comentários existentes:", error);
+      return;
+    }
+
+    const isFirstComment = existingComments.length === 0;
+
+    const newCount = commentCount + 1;
+    setCommentCount(newCount);
+
+    if (isFirstComment) {
+      addFitcoin(User, 1); // Só ganha Fitcoin se for o primeiro comentário
+    }
+  };
 
   const totalPollVotes = pollResults.reduce((acc, curr) => acc + curr, 0)
 
@@ -696,14 +732,15 @@ export default function FeedPost({
   return (
     <>
       <Card className="w-full max-w-md mx-auto mb-4 shadow-sm">
-        <CardContent className="p-0">
-          {/* Mostrar informação de repost ACIMA do header se for repost */}
-          {type === "repost" && (
+        {type === "repost" && (
             <div className="flex items-center text-sm text-gray-500 px-4 pt-3 pb-1">
               <Repeat className="w-4 h-4 mr-2" />
               <span>{user} repostou</span>
             </div>
           )}
+        <CardContent className="p-0">
+          {/* Mostrar informação de repost ACIMA do header se for repost */}
+          
           {/* Header do post com informação de repost */}
           <div className="flex items-center justify-between p-4 pb-2">
             <div className="flex items-center space-x-3">
@@ -722,7 +759,7 @@ export default function FeedPost({
                 <div className="flex items-center gap-1">
                   <p
                     className="font-semibold text-sm cursor-pointer hover:underline"
-                    onClick={(e) => handleProfileClick(e, displayUser)}
+                    onClick={(e) => handleProfileClick(e, username)}
                   >
                     {displayUser}
                   </p>
