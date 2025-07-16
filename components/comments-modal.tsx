@@ -20,7 +20,8 @@ interface CommentsModalProps {
   postId: string
   initialComments?: Comment[]
   onCommentAdded?: () => void,
-  user:any
+  user:any,
+  isFitz:boolean
 }
 
 export default function CommentsModal({
@@ -29,7 +30,8 @@ export default function CommentsModal({
   postId,
   initialComments = [],
   onCommentAdded,
-  user
+  user,
+  isFitz
 }: CommentsModalProps) {
   const [commentText, setCommentText] = useState("")
   const [comments, setComments] = useState<Comment[]>(initialComments)
@@ -38,7 +40,12 @@ export default function CommentsModal({
   const { addFitcoin } = useFitcoin()
 
   const loadComments = async () => {
-    const {data,error}=await supabase.from(`comments`).select(`*, profiles(avatar_url, username)`).eq(`post_id`, postId);
+    var table = "comments"
+    if(isFitz){
+      table = `comments_fitz`
+    }
+
+    const {data,error}=await supabase.from(table).select(`*, profiles(avatar_url, username)`).eq(`post_id`, postId);
     if(!data)return null;
     const comments: Comment[] = data.map((item) => ({
       user: item.profiles?.username || "Usuário",
@@ -95,7 +102,12 @@ export default function CommentsModal({
         avatar: "/placeholder.svg?height=32&width=32",
       }
 
-      await supabase.from(`comments`).insert({user_id:user.id, post_id: postId, content: commentText});
+      var table = "comments"
+      if(isFitz){
+        table = `comments_fitz`
+      }
+
+      await supabase.from(table).insert({user_id:user.id, post_id: postId, content: commentText});
 
       loadComments();
 

@@ -61,7 +61,7 @@ export default function ProfileMenu(props:any) {
         </SheetHeader>
 
         <div className="space-y-2">
-          <Link href="/profile/joao.fitness">
+          <Link href="/profile/edit">
             <Button
               variant="ghost"
               className="w-full justify-start gap-3 h-12 hover:bg-purple-500/10 hover:text-purple-500 transition-all duration-300"
@@ -141,7 +141,7 @@ export default function ProfileMenu(props:any) {
             Configurações
           </Button>
 
-          {profile.user_type === "admin" && (
+          {(profile.user_type === "admin" || profile.user_type === "producer") && (
             <div className="pt-4 border-t border-border/50">
               <Link href="/admin">
                 <Button
@@ -150,7 +150,7 @@ export default function ProfileMenu(props:any) {
                   onClick={() => setIsOpen(false)}
                 >
                   <Shield className="w-5 h-5" />
-                  Dashboard Admin
+                  Dashboard {profile.user_type == "admin" ? "Admin" : "Produtor"}
                 </Button>
               </Link>
             </div>

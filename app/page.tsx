@@ -25,15 +25,11 @@ interface Post {
   avatar: string
   content: string
   image?: string
-  videoThumbnail?: string
-  backgroundColor?: string
-  pollOptions?: any
   likes: number
   comments: number
   shares: number
   isVerified?: boolean
-  isAdmin?: boolean
-  adType?: "ebook" | "treino" | "receita" | "desafio" | "premium"
+  adType?: string
   price?: string
   originalPrice?: string
   fitcoinPrice?: number
@@ -41,14 +37,14 @@ interface Post {
   externalLink?: string
   isPremiumContent?: boolean
   timestamp?: string
-  createdAt?: number;
-  user_liked: boolean;
-  already_like: boolean;
-  user_reposted: boolean;
-  location:string;
-  username:string;
-  repostedBy:string;
-  isRepost:boolean;
+  createdAt?: number
+  user_liked: boolean
+  already_like: boolean
+  user_reposted: boolean
+  location: string
+  username: string
+  repostedBy: string
+  isRepost: boolean
 }
 
 interface SupabasePost {
@@ -87,6 +83,7 @@ function mapSupabaseToPost(data: SupabasePost): Post {
     type: data.type,
     user: data.profiles?.full_name || "",
     avatar: data.profiles?.avatar_url || "",
+    profiles: data.profiles,
     content: data.content,
     image: data.image_url || undefined,
     videoThumbnail: data.video_url || undefined,
@@ -127,6 +124,41 @@ export default function HomePage() {
         .then((data) => {setProfile(data);})
         .catch((err) => console.error(err))
     }, [user])
+
+
+    const loadAds = async (): Promise<Post[]> => {
+  const { data, error } = await supabase
+    .from('ads')
+    .select('*')
+    .eq('status', 'active')  // Filtra apenas anúncios ativos, se desejar
+
+  if (error) {
+    console.error('Erro ao carregar anúncios:', error)
+    return []
+  }
+
+  return data.map(ad => ({
+    id: ad.id.toString(),
+    type: 'ad',
+    user: ad.name || 'Anunciante',
+    avatar: '/placeholder.svg',  // Você pode criar um campo de avatar se quiser
+    content: ad.caption || '',
+    image: ad.image || '',
+    likes: 0,
+    comments: 0,
+    shares: 0,
+    adType: ad.category,
+    externalLink: ad.buttonLink,
+    isVerified: true,  // Se quiser destacar anúncios como verificados
+    user_liked: false,
+    already_like: false,
+    user_reposted: false,
+    location: ad.placement || 'foryou', // Defina onde o anúncio aparece
+    username: '',
+    repostedBy: '',
+    isRepost: false
+  }))
+}
 
 
   // Detectar se é mobile
@@ -173,23 +205,22 @@ export default function HomePage() {
     ]
 
   // Função para intercalar posts com anúncios no mobile
-  const getIntercalatedPosts = (posts: Post[], includeAds = true) => {
-    // if (!isMobile || !includeAds) return posts
+  const getIntercalatedPosts = (posts: Post[], adsToInsert: Post[] = [], includeAds = true) => {
+  if (!includeAds || adsToInsert.length === 0) return posts
 
-    const result: Post[] = []
-    const adInterval = 3 // A cada 3 posts, inserir um anúncio
+  const result: Post[] = []
+  const adInterval = 3
 
-    posts.forEach((post, index) => {
-      result.push(post)
-      
-      if (includeAds && (index + 1) % adInterval === 0 && ads[Math.floor(index / adInterval) % ads.length]) {
-        
-        result.push(ads[0])
-      }
-    })
+  posts.forEach((post, index) => {
+    result.push(post)
 
-    return result
-  }
+    if ((index + 1) % adInterval === 0 && adsToInsert[Math.floor(index / adInterval) % adsToInsert.length]) {
+      result.push(adsToInsert[Math.floor(index / adInterval) % adsToInsert.length])
+    }
+  })
+
+  return result
+}
 
   const loadUserPosts = async () => {
   const { data: postsData, error: postsError } = await supabase
@@ -199,7 +230,8 @@ export default function HomePage() {
       profiles (
         avatar_url,
         full_name,
-        username
+        username,
+        user_type
       ),
       likes (
         user_id,
@@ -215,14 +247,16 @@ export default function HomePage() {
     .select(`
       *,
       user:profiles (
-        full_name
+        full_name,
+        user_type
       ),
       posts (
         *,
         profiles (
           avatar_url,
           full_name,
-          username
+          username,
+          user_type
         ),
         likes (
           user_id,
@@ -249,9 +283,9 @@ export default function HomePage() {
   const allRawPosts = [...postsData, ...repostsAsPosts]
 
   const posts = allRawPosts.map((post: any) => {
-    const userLiked = post.likes?.some((like: any) => like.user_id === user.id && like.like)
-    const userReposted = post.post_reposts?.some((repost: any) => repost.user_id === user.id)
-    const userAlreadyLiked = post.likes?.some((like: any) => like.user_id === user.id)
+    const userLiked = post.likes?.some((like: any) => like.user_id === user?.id && like.like)
+    const userReposted = post.post_reposts?.some((repost: any) => repost.user_id === user?.id)
+    const userAlreadyLiked = post.likes?.some((like: any) => like.user_id === user?.id)
 
     return {
       ...post,
@@ -268,12 +302,86 @@ export default function HomePage() {
     setUserPosts(user_post)
   }
 
-  const foryou = getIntercalatedPosts(all_posts.filter((p: any) => p.location === "foryou"), true)
-  const community = getIntercalatedPosts(all_posts.filter((p: any) => p.location === "community"))
+  const adsFromDb = await loadAds()
+  
+  // Salve em algum estado global ou local se quiser manipular depois
+  // Exemplo: setAds(adsFromDb)
+  
+  // Atualize a função de intercalar para usar `adsFromDb` em vez do array fixo
 
-  setCommunityPosts(community)
-  setForYou(foryou)
+  console.log(all_posts);
+  setForYou(getIntercalatedPosts(all_posts.filter(p => p?.profiles?.user_type === 'producer' || p?.profiles?.user_type === 'admin' || p?.profiles?.is_verified), adsFromDb))
+  setCommunityPosts(getIntercalatedPosts(all_posts, adsFromDb))
 }
+
+interface FeaturedItem {
+  id: string
+  type: "ad" | "product"
+  title: string
+  description: string
+  image: string
+  price?: string
+  originalPrice?: string
+  discount?: string
+  fitcoinPrice?: number
+  externalLink?: string
+  badge?: string
+}
+
+
+
+const loadFeaturedItems = async (): Promise<FeaturedItem[]> => {
+  // 1. Carregar anúncios ativos
+  const { data: adsData, error: adsError } = await supabase
+    .from('ads')
+    .select('*')
+    .eq('status', 'active')
+
+  if (adsError) {
+    console.error('Erro ao carregar anúncios:', adsError)
+  }
+
+  const ads: FeaturedItem[] = adsData?.map((ad: any) => ({
+    id: ad.id.toString(),
+    type: 'ad',
+    title: ad.caption || ad.name || 'Anúncio em destaque',
+    description: ad.description || '',
+    image: ad.image || '/placeholder.svg',
+    price: ad.price || undefined,
+    originalPrice: ad.originalPrice || undefined,
+    discount: ad.discount || undefined,
+    externalLink: ad.buttonLink,
+    badge: 'DESTAQUE'
+  })) || []
+
+  // 2. Carregar produtos em destaque
+  const { data: productsData, error: productsError } = await supabase
+    .from('products')
+    .select('*')
+    .eq('is_featured', true)
+    .eq('is_available', true)
+
+  if (productsError) {
+    console.error('Erro ao carregar produtos:', productsError)
+  }
+
+  const products: FeaturedItem[] = productsData?.map((product: any) => ({
+    id: product.id,
+    type: 'product',
+    title: product.name,
+    description: product.description,
+    image: product.image_url || '/placeholder.svg',
+    price: `R$ ${product.real_price}`,
+    fitcoinPrice: product.fitcoin_price,
+    externalLink: product.external_link || product.file_url,
+    badge: 'NOVO'
+  })) || []
+
+  return [...ads, ...products]
+}
+
+const [featuredItems, setFeaturedItems] = useState<FeaturedItem[]>([])
+
 
 
   // Carregar posts do usuário
@@ -281,6 +389,7 @@ export default function HomePage() {
     
 
     loadUserPosts()
+    loadFeaturedItems().then(setFeaturedItems)
 
     // Listener para reposts
     const handleRepostCreated = (event:any) => {
@@ -441,7 +550,43 @@ export default function HomePage() {
 
               <h3 className="font-semibold mb-4 text-foreground text-lg ml-6">Em destaque</h3>
 
-              <Card className="card-neon overflow-hidden mb-4 hover:shadow-glow-orange ml-6">
+              {featuredItems.map((item) => (
+  <Card key={item.id} className="card-neon overflow-hidden mb-4 hover:shadow-glow-orange ml-6">
+    <div className="relative">
+      <Image
+        src={item.image}
+        alt={item.title}
+        width={300}
+        height={150}
+        className="w-full h-40 object-cover"
+      />
+      <div className="absolute top-2 right-2 bg-orange-500 px-2 py-0.5 rounded text-xs font-bold text-white">
+        {item.badge}
+      </div>
+    </div>
+    <CardContent className="p-3">
+      <h4 className="font-medium text-sm mb-1">{item.title}</h4>
+      <p className="text-xs text-muted-foreground mb-3">{item.description}</p>
+      {item.price && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-sm font-bold">{item.price}</span>
+          {item.originalPrice && (
+            <span className="text-xs text-muted-foreground line-through">{item.originalPrice}</span>
+          )}
+        </div>
+      )}
+      <Button
+        size="sm"
+        className="w-full btn-neon-yellow text-xs"
+        onClick={() => item.externalLink && window.open(item.externalLink, '_blank')}
+      >
+        {item.type === 'ad' ? 'Aproveitar oferta' : 'Comprar agora'}
+      </Button>
+    </CardContent>
+  </Card>
+))}
+
+              {/* <Card className="card-neon overflow-hidden mb-4 hover:shadow-glow-orange ml-6">
                 <div className="relative">
                   <Image
                     src="/placeholder.svg?height=200&width=300"
@@ -503,7 +648,7 @@ export default function HomePage() {
                     Participar
                   </Button>
                 </CardContent>
-              </Card>
+              </Card> */}
             </div>
           </div>
         </div>

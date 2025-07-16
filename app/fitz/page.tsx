@@ -9,6 +9,8 @@ import DesktopSidebar from "@/components/desktop-sidebar"
 import FitcoinNotification from "@/components/fitcoin-notification"
 import CommentsModal from "@/components/comments-modal"
 import { supabase } from "@/lib/supabase"
+import { useUser } from "@supabase/auth-helpers-react"
+
 interface FitzItem {
   id: number
   user: string
@@ -23,6 +25,7 @@ interface FitzItem {
   externalLink?: string
   linkText?: string
 }
+
 export default function FitzPage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [likedItems, setLikedItems] = useState<Set<number>>(new Set())
@@ -32,28 +35,34 @@ export default function FitzPage() {
   const [comments, setComments] = useState<{ [key: number]: { user: string; text: string; time: string }[] }>({})
   const [repostedItems, setRepostedItems] = useState<Set<number>>(new Set())
   const { addFitcoin } = useFitcoin()
+  const user = useUser()
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map())
   const observerRef = useRef<IntersectionObserver | null>(null)
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const currentVideoRef = useRef<HTMLVideoElement | null>(null)
   const [fitz, setFitz] = useState<FitzItem[]>([])
-  // Dados básicos dos vídeos
+  const [originalFitzCount, setOriginalFitzCount] = useState(0) // Novo estado para guardar o número de itens originais
 
+  // Dados básicos dos vídeos
   useEffect(() => {
     const fetchFitz = async () => {
       const { data, error } = await supabase
         .from('fitz')
-        .select(`
-          id,
-          created_at,
-          author,
-          caption,
-          file,
-          link,
-          type,
-          "isVisible"
-        `)
+        .select(
+          `
+            id,
+            created_at,
+            author,
+            caption,
+            file,
+            link,
+            type,
+            likes_count,
+            comments_count,
+            isVisible
+          `
+        )
         .eq('isVisible', true)
         .order('created_at', { ascending: false })
 
@@ -70,21 +79,39 @@ export default function FitzPage() {
           verified: true,
           description: item.caption,
           media: item.file,
-          likes: 0,
-          comments: 0,
+          likes: item.likes_count,
+          comments: item.comments_count,
           shares: 0,
           isVideo: item.type == "video",
           externalLink: item.link,
           linkText: 'Saiba mais',
         }))
-        setFitz(mapped)
+
+        // Duplica os itens para criar o efeito de loop infinito
+        setOriginalFitzCount(mapped.length);
+        setFitz([...mapped, ...mapped]); // Duplica os itens
+
+        // Agora, busque likes desse user para os posts carregados
+        if (user) {
+          const { data: likedData, error: likedError } = await supabase
+            .from('fitz_likes')
+            .select('post_id')
+            .eq('user_id', user.id)
+
+          if (likedError) {
+            console.error("Erro ao buscar curtidas:", likedError)
+          } else {
+            const likedSet = new Set<number>(likedData.map((item) => item.post_id))
+            setLikedItems(likedSet)
+          }
+        }
       }
     }
 
     fetchFitz()
-  }, [])
- 
-  // Comentários iniciais
+  }, [user])
+
+  // Comentários iniciais (mantido como estava)
   useEffect(() => {
     const initialComments = {
       1: [
@@ -104,7 +131,6 @@ export default function FitzPage() {
     }
     setComments(initialComments)
   }, [])
-
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) {
@@ -151,7 +177,7 @@ export default function FitzPage() {
     [cleanup],
   )
 
-  // Configurar Intersection Observer para autoplay
+  // Configurar Intersection Observer para autoplay e loop
   useEffect(() => {
     if (!containerRef.current) return
 
@@ -168,6 +194,19 @@ export default function FitzPage() {
 
         if (entry.isIntersecting) {
           setCurrentIndex(index)
+
+          // Lógica para o loop infinito
+          if (originalFitzCount > 0 && index >= originalFitzCount * (fitz.length / originalFitzCount) - 1) { // Verifica se é o último item da DUPLICAÇÃO
+            // Scroll suave para o início para simular o loop
+            if (containerRef.current) {
+                containerRef.current.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            }
+            setCurrentIndex(0); // Reinicia o índice para o primeiro item
+          }
+
 
           if (video && fitz[index]?.isVideo) {
             // Pausar todos os outros vídeos
@@ -204,7 +243,7 @@ export default function FitzPage() {
       observer.disconnect()
       cleanup()
     }
-  }, [muted, startProgressTimer, cleanup, fitz])
+  }, [muted, startProgressTimer, cleanup, fitz, originalFitzCount]) // Adicione originalFitzCount às dependências
 
   // Manipular referência de vídeo
   const setVideoRef = useCallback(
@@ -219,17 +258,34 @@ export default function FitzPage() {
   )
 
   const handleLike = useCallback(
-    (itemId: number) => {
-      setLikedItems((prev) => {
-        const newSet = new Set(prev)
-        if (!newSet.has(itemId)) {
-          newSet.add(itemId)
-          addFitcoin(1) // Adiciona exatamente 1 fitcoin apenas na primeira curtida
-        }
-        return newSet
+    async (itemId: number) => {
+      // Se o itemId for de uma duplicata, use o ID original
+      const originalItemId = itemId > originalFitzCount ? itemId - originalFitzCount : itemId;
+
+      if (likedItems.has(originalItemId)) return
+
+      // Atualiza localmente primeiro
+      setLikedItems((prev) => new Set(prev).add(originalItemId))
+      addFitcoin(user, 1)
+
+      // Salva no Supabase
+      const { error } = await supabase.from('fitz_likes').insert({
+        post_id: originalItemId, // Sempre salve o ID original
+        user_id: user?.id,
+        like: true
       })
+
+      if (error) {
+        console.error("Erro ao curtir:", error)
+        // reverte caso erro
+        setLikedItems((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(originalItemId)
+          return newSet
+        })
+      }
     },
-    [addFitcoin],
+    [likedItems, user, addFitcoin, originalFitzCount]
   )
 
   const handleComment = useCallback(() => {
@@ -239,20 +295,26 @@ export default function FitzPage() {
   const handleCommentAdded = useCallback(
     (newComment: { user: string; text: string; time: string }) => {
       const currentItemId = fitz[currentIndex]?.id
+      // Se o currentItemId for de uma duplicata, use o ID original
+      const originalItemId = currentItemId > originalFitzCount ? currentItemId - originalFitzCount : currentItemId;
+
       setComments((prev) => ({
         ...prev,
-        [currentItemId]: [newComment, ...(prev[currentItemId] || [])],
+        [originalItemId]: [newComment, ...(prev[originalItemId] || [])], // Use o ID original
       }))
     },
-    [currentIndex, fitz],
+    [currentIndex, fitz, originalFitzCount],
   )
 
   const handleRepost = useCallback(
     (itemId: number, username: string) => {
-      if (!repostedItems.has(itemId)) {
+      // Se o itemId for de uma duplicata, use o ID original
+      const originalItemId = itemId > originalFitzCount ? itemId - originalFitzCount : itemId;
+
+      if (!repostedItems.has(originalItemId)) {
         setRepostedItems((prev) => {
           const newSet = new Set(prev)
-          newSet.add(itemId)
+          newSet.add(originalItemId)
           return newSet
         })
         addFitcoin(1) // Adiciona exatamente 1 fitcoin apenas no primeiro repost
@@ -262,15 +324,18 @@ export default function FitzPage() {
         alert("Você já repostou este conteúdo")
       }
     },
-    [repostedItems, addFitcoin],
+    [repostedItems, addFitcoin, originalFitzCount],
   )
 
   const handleCopyLink = useCallback(() => {
-    const link = `https://bbfitness.com/fitz/${fitz[currentIndex]?.id}`
+    const currentItemId = fitz[currentIndex]?.id
+    // Se o currentItemId for de uma duplicata, use o ID original
+    const originalItemId = currentItemId > originalFitzCount ? currentItemId - originalFitzCount : currentItemId;
+    const link = `https://bbfitness.com/fitz/${originalItemId}`
     navigator.clipboard.writeText(link).then(() => {
       alert("Link copiado! 📋")
     })
-  }, [currentIndex, fitz])
+  }, [currentIndex, fitz, originalFitzCount])
 
   const handleMediaPress = useCallback(
     (index: number) => {
@@ -419,7 +484,7 @@ export default function FitzPage() {
                     <MessageCircle className="w-7 h-7 text-white" />
                   </button>
                   <span className="text-white text-xs font-medium mt-1">
-                    {formatNumber((comments[item.id]?.length || 0) + item.comments)}
+                    {formatNumber((comments[item.id > originalFitzCount ? item.id - originalFitzCount : item.id]?.length || 0) + item.comments)}
                   </span>
                 </div>
 
@@ -614,7 +679,7 @@ export default function FitzPage() {
                         <MessageCircle className="w-6 h-6 text-white" />
                       </button>
                       <span className="text-white text-xs font-medium mt-1">
-                        {formatNumber((comments[item.id]?.length || 0) + item.comments)}
+                        {formatNumber((comments[item.id > originalFitzCount ? item.id - originalFitzCount : item.id]?.length || 0) + item.comments)}
                       </span>
                     </div>
 
@@ -649,9 +714,11 @@ export default function FitzPage() {
       {/* Modal de Comentários Padrão */}
       <CommentsModal
         isOpen={showComments}
+        isFitz={true}
+        user={user}
         onClose={() => setShowComments(false)}
-        postId={`fitz-${fitz[currentIndex]?.id}`}
-        initialComments={comments[fitz[currentIndex]?.id] || []}
+        postId={`${fitz[currentIndex]?.id > originalFitzCount ? fitz[currentIndex]?.id - originalFitzCount : fitz[currentIndex]?.id}`} // Passa o ID original
+        initialComments={comments[fitz[currentIndex]?.id > originalFitzCount ? fitz[currentIndex]?.id - originalFitzCount : fitz[currentIndex]?.id] || []} // Passa os comentários do ID original
         onCommentAdded={handleCommentAdded}
       />
     </div>

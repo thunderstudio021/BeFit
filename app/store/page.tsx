@@ -16,50 +16,6 @@ import { PurchaseSuccessNotification } from "@/components/purchase-success-notif
 import { supabase } from "@/lib/supabase"
 import { useUser } from "@supabase/auth-helpers-react"
 
-// Simulando produtos relâmpago
-const flashProducts = [
-  {
-    id: "flash1",
-    title: "Kit Treino Completo",
-    image: "/placeholder.svg?height=300&width=300",
-    price: 1200,
-    originalPrice: 2000,
-    discount: "40%",
-    endTime: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 horas
-    realPrice: 99.9,
-  },
-  {
-    id: "flash2",
-    title: "E-book Nutrição Avançada",
-    image: "/placeholder.svg?height=300&width=300",
-    price: 500,
-    originalPrice: 1000,
-    discount: "50%",
-    endTime: new Date(Date.now() + 12 * 60 * 60 * 1000), // 12 horas
-    realPrice: 39.9,
-  },
-  {
-    id: "flash3",
-    title: "Plano Premium 6 meses",
-    image: "/placeholder.svg?height=300&width=300",
-    price: 1500,
-    originalPrice: 3000,
-    discount: "50%",
-    endTime: new Date(Date.now() + 36 * 60 * 60 * 1000), // 36 horas
-    realPrice: 129.9,
-  },
-  {
-    id: "flash4",
-    title: "Consulta Personalizada",
-    image: "/placeholder.svg?height=300&width=300",
-    price: 800,
-    originalPrice: 1200,
-    discount: "33%",
-    endTime: new Date(Date.now() + 48 * 60 * 60 * 1000), // 48 horas
-    realPrice: 69.9,
-  },
-]
-
 
 
 export default function StorePage() {
@@ -71,6 +27,7 @@ export default function StorePage() {
     buttonLink: "",
     isActive: false,
   })
+  const [flashProducts, setFlashProducts] = useState<any[]>([])
 
   useEffect(() => {
   const fetchStoreBanner = async () => {
@@ -126,13 +83,17 @@ const [digitalProducts, setDigitalProducts] = useState([
   const { fitcoin, addFitcoin } = useFitcoin()
 
   const getData = async () => {
-    const { data, error } = await supabase
-          .from("products")
-          .select(`
-            *
-          `)
-          setDigitalProducts(data);
+  const { data, error } = await supabase.from("products").select("*")
+  if (error) {
+    console.error("Erro ao buscar produtos:", error)
+    return
   }
+  if (data) {
+    const { flashProducts, regularProducts } = formatProducts(data)
+    setFlashProducts(flashProducts)
+    setDigitalProducts(regularProducts)
+  }
+}
 
   // Calcular tempo restante para cada produto
   useEffect(() => {
@@ -160,6 +121,27 @@ const [digitalProducts, setDigitalProducts] = useState([
 
     return () => clearInterval(timer)
   }, [])
+
+  function formatProducts(products: any[]) {
+  const flashProducts = products
+    .filter(p => p.is_featured)
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      image: p.image_url || "/placeholder.svg",
+      price: p.fitcoin_price || 0,
+      originalPrice: p.real_price || 0,
+      external_link: p.external_link,
+      real_price: p.real_price,
+      discount: p.discount || "0%",
+      endTime: p.end_time ? new Date(p.end_time) : new Date(Date.now() + 24 * 60 * 60 * 1000), // se tiver campo, converte, se não, 24h padrão
+      realPrice: p.real_price || 0,
+    }))
+
+  const regularProducts = products.filter(p => !p.is_featured)
+
+  return { flashProducts, regularProducts }
+}
 
   // Esconder alerta de fitcoins insuficientes após 5 segundos
   useEffect(() => {
@@ -298,7 +280,7 @@ const [digitalProducts, setDigitalProducts] = useState([
         {/* Banner Responsivo Customizável */}
         {storeBannerData.isActive && (
           <div className="w-full mb-6">
-            <div className="relative w-full h-40 sm:h-48 md:h-56 lg:h-64 overflow-hidden">
+            <div onClick={() => window.open(storeBannerData.buttonLink)} className="relative w-full h-40 sm:h-48 md:h-56 lg:h-64 overflow-hidden">
               {/* Imagem de fundo */}
               <Image
                 src={storeBannerData.image || "/placeholder.svg"}
@@ -314,7 +296,7 @@ const [digitalProducts, setDigitalProducts] = useState([
               {/* Conteúdo do banner */}
               <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-4 sm:p-6 md:p-8">
                 <Button
-                  onClick={() => (window.location.href = storeBannerData.buttonLink)}
+                  
                   className="bg-gradient-to-r from-orange-500 to-purple-600 hover:from-orange-600 hover:to-purple-700 text-white border-0 shadow-glow-orange px-6 sm:px-8 py-2 sm:py-3 text-sm sm:text-base font-semibold rounded-full transition-all duration-300 hover:scale-105"
                 >
                   {storeBannerData.buttonText}
@@ -364,14 +346,14 @@ const [digitalProducts, setDigitalProducts] = useState([
                         </div>
                         <Image
                           src={product.image || "/placeholder.svg"}
-                          alt={product.title}
+                          alt={product.name}
                           width={300}
                           height={300}
                           className="w-full aspect-square object-cover hover:scale-105 transition-transform duration-500"
                         />
                       </div>
                       <CardContent className="p-4">
-                        <h3 className="font-bold text-lg mb-2 text-foreground">{product.title}</h3>
+                        <h3 className="font-bold text-lg mb-2 text-foreground">{product.name}</h3>
 
                         {/* Contador regressivo */}
                         {timeLeft[product.id] && (
@@ -416,7 +398,7 @@ const [digitalProducts, setDigitalProducts] = useState([
                           <Button className="flex-1 btn-neon-orange" onClick={() => handlePurchase(product)}>
                             Trocar
                           </Button>
-                          <Button variant="outline" className="flex-1 gap-1 hover:shadow-glow-blue">
+                          <Button onClick={() => handlePurchaseExternal(product)} variant="outline" className="flex-1 gap-1 hover:shadow-glow-blue">
                             R$ {product.real_price}
                           </Button>
                         </div>
@@ -484,12 +466,14 @@ const [digitalProducts, setDigitalProducts] = useState([
                 {digitalProducts.map((product) => (
                   <ProductCard
                     key={product.id}
-                    title={product.title}
+                    title={product.name}
                     image={product.image_url}
                     price={product.fitcoin_price}
                     realPrice={product.real_price}
                     available={product.is_available}
+                    link={product.external_link}
                     onPurchase={() => handlePurchase(product)}
+                    onPurchaseExternal={() => handlePurchaseExternal(product)}
                   />
                 ))}
               </div>
@@ -524,6 +508,10 @@ const [digitalProducts, setDigitalProducts] = useState([
   )
 }
 
+const handlePurchaseExternal = (product: any) => {
+  window.open(product.external_link, "_blank")
+}
+
 interface ProductCardProps {
   title: string
   image: string
@@ -531,9 +519,11 @@ interface ProductCardProps {
   realPrice: number
   available: boolean
   onPurchase: () => void
+  onPurchaseExternal: () => void
+  link: string
 }
 
-function ProductCard({ title, image, price, realPrice, available, onPurchase }: ProductCardProps) {
+function ProductCard({ title, image, price, realPrice, available, onPurchase, onPurchaseExternal, link }: ProductCardProps) {
   return (
     <Card className="card-neon">
       <div className="relative">
@@ -561,7 +551,7 @@ function ProductCard({ title, image, price, realPrice, available, onPurchase }: 
         <Button size="sm" className="flex-1 btn-neon-purple" onClick={onPurchase}>
           Trocar
         </Button>
-        <Button size="sm" variant="outline" className="flex-1 gap-1 hover:shadow-glow-blue">
+        <Button onClick={onPurchaseExternal} size="sm" variant="outline" className="flex-1 gap-1 hover:shadow-glow-blue">
           R$ {realPrice}
         </Button>
       </CardFooter>

@@ -133,7 +133,7 @@ export default function CreatePost({ location, onClose, className, onPostCreated
     return
   }
 
-  const maxSize = 10 * 1024 * 1024
+  const maxSize = 50 * 1024 * 1024
   if (file.size > maxSize) {
     window.dispatchEvent(
       new CustomEvent("showNotification", {

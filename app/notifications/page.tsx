@@ -43,25 +43,38 @@ export default function NotificationsPage() {
   const user = useUser();
 
   useEffect(() => {
-    if (!user) return;
+  if (!user) return;
 
-    const fetchNotifications = async () => {
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+  const fetchNotifications = async () => {
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Erro ao buscar notificações:", error);
-      } else {
-        setNotifications(data);
-      }
-    };
+    if (error) {
+      console.error("Erro ao buscar notificações:", error);
+    } else {
+      const formatted = data.map((n) => ({
+        id: n.id,
+        type: n.type,
+        user: null, // você pode buscar o nome do usuário se quiser
+        avatar: null, // idem acima
+        content: n.message || "",
+        timestamp: new Date(n.created_at).toLocaleString("pt-BR", {
+          dateStyle: "short",
+          timeStyle: "short",
+        }),
+        isRead: n.is_read,
+        actionText: n.action_text || "",
+        isVerified: false,
+      }))
+      setNotifications(formatted)
+    }
+  };
 
-    fetchNotifications();
-  }, [user]);
-
+  fetchNotifications();
+}, [user])
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "like":

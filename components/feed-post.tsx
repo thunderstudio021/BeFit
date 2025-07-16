@@ -112,9 +112,9 @@ export default function FeedPost({
   // Carregar dados salvos do localStorage
   useEffect(() => {
   const fetchData = async () => {
-    const currentUser = User?.id
+    if (!User?.id || !postId) return;
 
-    // Carregar resultados da enquete via Supabase
+    // Verifica votos da enquete
     if (type === "poll" && pollOptions) {
       const { data: votes, error } = await supabase
         .from("poll_votes")
@@ -126,12 +126,11 @@ export default function FeedPost({
         return
       }
 
-      // Contagem de votos por índice
       const optionCount = new Array(pollOptions.length).fill(0)
       let userVote: number | null = null
 
       votes.forEach((vote) => {
-        if (vote.user_id === currentUser) userVote = vote.index
+        if (vote.user_id === User.id) userVote = vote.index
         if (typeof vote.index === "number") optionCount[vote.index]++
       })
 
@@ -139,12 +138,12 @@ export default function FeedPost({
       setSelectedPollOption(userVote)
     }
 
-    // Verificar se usuário está participando do desafio
+    // Verifica participação em desafio
     if (type === "challenge") {
       const { data, error } = await supabase
         .from("challange")
         .select("id")
-        .eq("user_id", currentUser)
+        .eq("user_id", User.id)
         .eq("post_id", postId)
         .maybeSingle()
 
@@ -160,7 +159,7 @@ export default function FeedPost({
   }
 
   fetchData()
-}, [postId, type, pollOptions])
+}, [User, postId, type, pollOptions])
   // Função para navegar para o perfil
   const handleProfileClick = (e: React.MouseEvent, username: string) => {
     e.stopPropagation()
@@ -376,41 +375,59 @@ export default function FeedPost({
     }
   }
 
-  const handlePollVote = async (index: number) => {
-  if (selectedPollOption !== null) return
-
-  const userId = User?.id // Certifique-se que User.id é o UUID correto
+const handlePollVote = async (index: number) => {
+  if (selectedPollOption !== null || !User?.id || !postId) return;
 
   try {
+    // Verifica se o usuário já votou nesse post
+    const { data: existingVote, error: checkError } = await supabase
+      .from("poll_votes")
+      .select("id")
+      .eq("user_id", User.id)
+      .eq("post_id", postId)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error("Erro ao verificar voto existente:", checkError);
+      return;
+    }
+
+    if (existingVote) {
+      // Já votou, não permite votar novamente
+      setSelectedPollOption(index);
+      return;
+    }
+
     // 1. Salva o voto no Supabase
     const { error } = await supabase.from("poll_votes").insert({
-      user_id: userId,
+      user_id: User.id,
       post_id: postId,
       index: index,
-    })
+    });
 
     if (error) {
-      console.error("Erro ao registrar voto:", error)
+      console.error("Erro ao registrar voto:", error);
       toast({
         title: "Erro ao votar",
         description: "Não foi possível registrar seu voto.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
     // 2. Atualiza localmente
-    setSelectedPollOption(index)
-    const newResults = [...pollResults]
-    newResults[index] += 1
-    setPollResults(newResults)
+    const newResults = [...pollResults];
+    newResults[index] += 1;
+    setPollResults(newResults);
+    setSelectedPollOption(index);
 
-    // 3. Recompensa
-    addFitcoin(User, 1)
+    // 3. Recompensa com Fitcoin
+    addFitcoin(User, 1);
   } catch (err) {
-    console.error("Erro inesperado ao votar:", err)
+    console.error("Erro inesperado ao votar:", err);
   }
-}
+};
+
 
   const handleJoinChallenge = async () => {
   if (joined) return
@@ -731,26 +748,21 @@ export default function FeedPost({
 
   return (
     <>
-      <Card className="w-full max-w-md mx-auto mb-4 shadow-sm">
-        {type === "repost" && (
-            <div className="flex items-center text-sm text-gray-500 px-4 pt-3 pb-1">
-              <Repeat className="w-4 h-4 mr-2" />
-              <span>{user} repostou</span>
-            </div>
-          )}
-        <CardContent className="p-0">
-          {/* Mostrar informação de repost ACIMA do header se for repost */}
-          
-          {/* Header do post com informação de repost */}
-          <div className="flex items-center justify-between p-4 pb-2">
-            <div className="flex items-center space-x-3">
-              {/* Mostrar informação de repost se aplicável */}
               {isRepost && repostedBy && (
                 <div className="flex items-center text-sm text-gray-500 mb-2">
                   <Repeat className="w-4 h-4 mr-1" />
                   <span>@{repostedBy} repostou</span>
                 </div>
               )}
+      <Card className="w-full max-w-md mx-auto mb-4 shadow-sm">
+        
+        <CardContent className="p-0">
+          {/* Mostrar informação de repost ACIMA do header se for repost */}
+          {/* Header do post com informação de repost */}
+          <div className="flex items-center justify-between p-4 pb-2">
+            <div className="flex items-center space-x-3">
+              {/* Mostrar informação de repost se aplicável */}
+              
               <Avatar className="cursor-pointer" onClick={(e) => handleProfileClick(e, username)}>
                 <AvatarImage src={displayAvatar || "/placeholder.svg"} alt={displayUser} />
                 <AvatarFallback>{displayUser?.charAt(0).toUpperCase()}</AvatarFallback>
@@ -812,6 +824,7 @@ export default function FeedPost({
 
       {/* Modal de comentários */}
       <CommentsModal
+        isFitz={false}
         isOpen={showComments}
         onClose={() => setShowComments(false)}
         postId={postId}

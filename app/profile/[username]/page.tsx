@@ -14,6 +14,7 @@ import { useTheme } from "@/contexts/theme-context"
 import { supabase } from "@/lib/supabase"
 
 interface UserProfile {
+  id:string
   username: string
   displayName: string
   avatar: string
@@ -91,8 +92,12 @@ export default function ProfilePage() {
       isRepost: true,
     })) || []
 
+    
+    
+
+
     // Junta posts normais com reposts e ordena por data
-    const combinedPosts = [...(userPosts || []), ...repostsAsPosts].sort(
+    const combinedPosts = [...(userPosts || [])].sort(
       (a, b) => new Date(b.created_at) - new Date(a.created_at)
     )
 
@@ -108,8 +113,20 @@ export default function ProfilePage() {
       .select("*", { count: "exact", head: true })
       .eq("follower_id", profile.id)
 
+      if (currentUserId && profile.id && currentUserId !== profile.id) {
+      const { data: followData } = await supabase
+        .from("follows")
+        .select("id")
+        .eq("follower_id", currentUserId)
+        .eq("following_id", profile.id)
+        .maybeSingle()
+
+      setIsFollowing(!!followData)
+    }
+
     // Atualiza perfil
     setUserProfile({
+      id: profile.id,
       username: profile.username,
       displayName: profile.full_name,
       avatar: profile.avatar_url,
@@ -124,6 +141,8 @@ export default function ProfilePage() {
 
     // Atualiza feed do usuário
     setUserPosts(combinedPosts)
+    setUserReposts(repostsAsPosts)
+
     setLoading(false)
   }
 

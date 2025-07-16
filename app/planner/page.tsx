@@ -285,12 +285,11 @@ function getRandomPhrase() {
   }
 
   // Função para verificar se pode fazer check no desafio (24h)
-  const canCheckChallenge = (challenge: Challenge) => {
+  function canCheckChallenge(challenge: Challenge) {
     if (!challenge.lastCheckDate) return true
-    const lastCheck = new Date(challenge.lastCheckDate)
-    const now = new Date()
-    const diffHours = (now.getTime() - lastCheck.getTime()) / (1000 * 60 * 60)
-    return diffHours >= 24
+    const lastCheck = challenge.lastCheckDate.split("T")[0]
+    const today = new Date().toISOString().split("T")[0]
+    return lastCheck !== today
   }
 
   // Função para mostrar notificação
@@ -330,16 +329,12 @@ function getRandomPhrase() {
     showNotification("success", "Meta Atualizada! ⚙️", `Nova meta: ${tempWaterGoal}L por dia`)
   }
 
-  async function registerChallengeCheck(challengeId: number) {
-  const { error } = await supabase.from('challenge_check').insert({
+async function registerChallengeCheck(challengeId: number) {
+  await supabase.from('challenge_check').insert({
+    user_id: user.id,             // 🔁 Inclua o usuário
     challenge_id: challengeId,
-    date: new Date().toISOString().split('T')[0], // só a data (YYYY-MM-DD)
+    date: new Date().toISOString().split('T')[0],
   })
-
-  if (error) {
-    console.error('Erro ao registrar check:', error)
-    throw error
-  }
 }
 
 const getWaterTotal = async (userId: string, date: string) => {

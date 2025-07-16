@@ -707,6 +707,7 @@ useEffect(() => {
       user_type: "free",
       is_blocked: false,
       posts_count: 0,
+      is_verified: false
     })
     setShowUserModal(true)
   }
@@ -726,7 +727,9 @@ useEffect(() => {
     }else{
       const { data, error: signUpError } = await supabase.auth.admin.createUser({
         email: editingUser.email,
-        password: editingUser.password
+        password: editingUser.password,
+        email_confirm: true,
+        phone_confirm: true
       })
       if (signUpError) return 0;
 
@@ -789,6 +792,7 @@ useEffect(() => {
       file_url: "",
       external_link: "",
       sales_count: 0,
+      is_featured: false
     })
     setShowProductModal(true)
   }
@@ -2517,6 +2521,16 @@ const { error: updateError } = await supabase
                     </div>
                   </div>
                 </div>
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div>
+                    <Label className="text-foreground font-medium text-sm">Verificado</Label>
+                    <p className="text-xs text-muted-foreground">Usuario é verificado na plataforma</p>
+                  </div>
+                  <Switch
+                    checked={editingUser.is_verified || false}
+                    onCheckedChange={(checked) => setEditingUser({ ...editingUser, is_verified: checked })}
+                  />
+                </div>
 
                 <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                   <div>
@@ -2606,6 +2620,16 @@ const { error: updateError } = await supabase
                     onChange={(e) => setEditingProduct({ ...editingProduct, external_link: e.target.value })}
                     placeholder="https://loja.com/produto"
                     className="mt-1 h-9"
+                  />
+                </div>
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div>
+                    <Label className="text-foreground font-medium text-sm">Produto de destaque</Label>
+                    <p className="text-xs text-muted-foreground">É um produto de destaque?</p>
+                  </div>
+                  <Switch
+                    checked={editingProduct.is_featured || false}
+                    onCheckedChange={(checked) => setEditingProduct({ ...editingProduct, is_featured: checked })}
                   />
                 </div>
                 {/* Upload de Imagem */}
