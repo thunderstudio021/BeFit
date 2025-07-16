@@ -560,34 +560,28 @@ const handlePollVote = async (index: number) => {
           </>
         )
       case "video":
-        return (
-          <>
-            <p className="px-4 mb-3 whitespace-pre-line">{content}</p>
-            {videoThumbnail && (
-              <div className="relative w-full aspect-video mb-3 bg-black">
-                <video
-                        ref={setVideoRef(0)}
-                        src={videoUrl}
-                        className="w-full h-full object-cover"
-                        loop
-                        muted={muted}
-                        playsInline
-                        controls 
-                        preload="metadata"
-                        poster="/placeholder.svg?height=1920&width=1080"
-                        onMouseDown={() => handleMediaPress(0)}
-                        onMouseUp={() => handleMediaRelease(0)}
-                        onClick={handleMediaClick}
-                      />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="bg-black/30 rounded-full p-4">
-                    <Play className="w-8 h-8 text-white fill-white" />
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        )
+  return (
+    <>
+      <p className="px-4 mb-3 whitespace-pre-line">{content}</p>
+      {videoUrl && (
+        <div className="relative w-full aspect-video mb-3 bg-black">
+          <video
+            ref={setVideoRef(0)}
+            src={videoUrl}
+            className="w-full h-full object-cover"
+            loop
+            muted={muted}
+            playsInline
+            controls
+            preload="metadata"
+            poster={videoThumbnail || "/placeholder.svg"}
+            onClick={handleMediaClick}
+          />
+          {/* Se quiser overlay de Play, implemente toggle manual */}
+        </div>
+      )}
+    </>
+  )
       case "poll":
         return (
           <div className="px-4 mb-3">
