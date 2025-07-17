@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase"
 import { useUser } from "@supabase/auth-helpers-react"
 
 interface FitzItem {
+  already_like: any
   id: number
   user: string
   avatar: string
@@ -24,6 +25,7 @@ interface FitzItem {
   isVideo: boolean
   externalLink?: string
   linkText?: string
+  liked: any
 }
 
 export default function FitzPage() {
@@ -43,6 +45,9 @@ export default function FitzPage() {
   const currentVideoRef = useRef<HTMLVideoElement | null>(null)
   const [fitz, setFitz] = useState<FitzItem[]>([])
   const [originalFitzCount, setOriginalFitzCount] = useState(0) // Novo estado para guardar o número de itens originais
+  const wasLongPress = useRef(false);
+  const pressTimer = useRef<any>(null);
+
 
   // Dados básicos dos vídeos
   useEffect(() => {
@@ -71,6 +76,12 @@ export default function FitzPage() {
         return
       }
 
+      // Agora, busque likes desse user para os posts carregados
+      const { data: likedData, error: likedError } = await supabase
+            .from('fitz_likes')
+            .select('post_id, user_id, like')
+            .eq('user_id', user?.id)
+
       if (data) {
         const mapped: FitzItem[] = data.map((item) => ({
           id: item.id,
@@ -82,6 +93,8 @@ export default function FitzPage() {
           likes: item.likes_count,
           comments: item.comments_count,
           shares: 0,
+          liked: likedData?.some((like: any) => like.post_id === item.id && like.user_id === user?.id && like.like),
+          already_like: likedData?.some((like: any) => like.post_id === item.id && like.user_id === user?.id),
           isVideo: item.type == "video",
           externalLink: item.link,
           linkText: 'Saiba mais',
@@ -91,20 +104,7 @@ export default function FitzPage() {
         setOriginalFitzCount(mapped.length);
         setFitz([...mapped, ...mapped]); // Duplica os itens
 
-        // Agora, busque likes desse user para os posts carregados
-        if (user) {
-          const { data: likedData, error: likedError } = await supabase
-            .from('fitz_likes')
-            .select('post_id')
-            .eq('user_id', user.id)
-
-          if (likedError) {
-            console.error("Erro ao buscar curtidas:", likedError)
-          } else {
-            const likedSet = new Set<number>(likedData.map((item) => item.post_id))
-            setLikedItems(likedSet)
-          }
-        }
+        
       }
     }
 
@@ -131,6 +131,9 @@ export default function FitzPage() {
     }
     setComments(initialComments)
   }, [])
+
+
+
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) {
@@ -257,36 +260,46 @@ export default function FitzPage() {
     [],
   )
 
-  const handleLike = useCallback(
-    async (itemId: number) => {
-      // Se o itemId for de uma duplicata, use o ID original
-      const originalItemId = itemId > originalFitzCount ? itemId - originalFitzCount : itemId;
+  const handleLike = async (itemId: number) => {
+    const _fitz = [...fitz];
+    console.log(_fitz[itemId], _fitz[itemId].liked);
+    const originalItemId = _fitz[itemId].id;
+    console.log(_fitz[itemId].liked);
+    _fitz[itemId].liked = !_fitz[itemId].liked;
 
-      if (likedItems.has(originalItemId)) return
+    if(!_fitz[itemId].already_like){
+      _fitz[itemId].already_like = true;
+      addFitcoin(user, 1);
+    }
 
-      // Atualiza localmente primeiro
-      setLikedItems((prev) => new Set(prev).add(originalItemId))
-      addFitcoin(user, 1)
+    if(_fitz[itemId].liked){
+      _fitz[itemId].likes = _fitz[itemId].likes+1;
+    }else{
+      _fitz[itemId].likes = _fitz[itemId].likes-1;
+    }
 
-      // Salva no Supabase
-      const { error } = await supabase.from('fitz_likes').insert({
-        post_id: originalItemId, // Sempre salve o ID original
-        user_id: user?.id,
-        like: true
-      })
+    console.log(_fitz[itemId].liked);
 
-      if (error) {
-        console.error("Erro ao curtir:", error)
-        // reverte caso erro
-        setLikedItems((prev) => {
-          const newSet = new Set(prev)
-          newSet.delete(originalItemId)
-          return newSet
-        })
-      }
-    },
-    [likedItems, user, addFitcoin, originalFitzCount]
-  )
+    // UPSERT no Supabase
+    const { error } = await supabase.from("fitz_likes")
+      .upsert(
+        {
+          post_id: originalItemId,
+          user_id: user?.id,
+          like: _fitz[itemId].liked,
+        },
+        {
+          onConflict: ["user_id", "post_id"], // respeita a constraint unique
+        }
+      );
+
+    if (error) {
+      console.error("Erro ao curtir:", error);
+      
+    }else{
+      setFitz(_fitz)
+    }
+  }
 
   const handleComment = useCallback(() => {
     setShowComments(true)
@@ -339,39 +352,55 @@ export default function FitzPage() {
 
   const handleMediaPress = useCallback(
     (index: number) => {
-      const video = videoRefs.current.get(index)
-      if (video && fitz[index]?.isVideo) {
-        video.pause()
-        cleanup()
-      }
+       wasLongPress.current = false;
+
+       const video = videoRefs.current.get(index);
+          if (video) {
+            video.pause();
+            cleanup();
+          }
+
+        pressTimer.current = setTimeout(() => {
+          wasLongPress.current = true;
+
+          
+        }, 600);
+      
     },
     [cleanup, fitz],
   )
 
   const handleMediaRelease = useCallback(
     (index: number) => {
+      if (pressTimer.current) {
+        clearTimeout(pressTimer.current);
+        pressTimer.current = null;
+      }
       const video = videoRefs.current.get(index)
       if (video && fitz[index]?.isVideo && index === currentIndex) {
         video
-          .play()
-          .then(() => {
-            startProgressTimer(video)
-          })
-          .catch(() => {})
+          .play();
+          startProgressTimer(video);
       }
     },
     [currentIndex, startProgressTimer, fitz],
   )
 
-  const handleMediaClick = useCallback(() => {
-    setMuted((prev) => {
-      const newMuted = !prev
-      videoRefs.current.forEach((video) => {
-        if (video) video.muted = newMuted
-      })
-      return newMuted
-    })
-  }, [])
+
+
+  const handleMediaClick = useCallback(
+    (index: number) => {
+      if (wasLongPress.current) return;
+          videoRefs.current.forEach((v, i) => {
+              v.muted = !v.muted;
+            })
+      
+    },
+    [cleanup, fitz],
+  )
+
+
+
 
   return (
     <div className="min-h-screen bg-black">
@@ -410,7 +439,13 @@ export default function FitzPage() {
 
       {/* MOBILE: Formato vertical tela cheia estilo TikTok/Reels */}
       <div className="md:hidden h-screen w-screen bg-black overflow-hidden">
-        <div ref={containerRef} className="fitz-scroll h-full w-full overflow-y-auto snap-y snap-mandatory">
+        <div ref={containerRef} 
+        onMouseDown={() => handleMediaPress(currentIndex)}
+                    onMouseUp={() => handleMediaRelease(currentIndex)}
+                    onTouchStart={() => handleMediaPress(currentIndex)}
+                    onTouchEnd={() => handleMediaRelease(currentIndex)}
+          onClick={() => handleMediaClick(currentIndex)} 
+        className="fitz-scroll h-full w-full overflow-y-auto snap-y snap-mandatory">
           {fitz.map((item, index) => (
             <div
               key={`${item.id}-${index}`}
@@ -429,14 +464,10 @@ export default function FitzPage() {
                     playsInline
                     preload="metadata"
                     poster="/placeholder.svg?height=1920&width=1080"
-                    onMouseDown={() => handleMediaPress(index)}
-                    onMouseUp={() => handleMediaRelease(index)}
-                    onTouchStart={() => handleMediaPress(index)}
-                    onTouchEnd={() => handleMediaRelease(index)}
-                    onClick={handleMediaClick}
+                    
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center" onClick={handleMediaClick}>
+                  <div className="w-full h-full flex items-center justify-center">
                     <Image
                       src={item.media || "/placeholder.svg"}
                       alt="Fitz content"
@@ -463,15 +494,15 @@ export default function FitzPage() {
                 {/* Like */}
                 <div className="flex flex-col items-center">
                   <button
-                    onClick={() => handleLike(item.id)}
+                    onClick={() => handleLike(index)}
                     className="w-12 h-12 rounded-full bg-black/20 backdrop-blur-sm flex items-center justify-center hover:bg-black/40 transition-all active:scale-95"
                   >
                     <Heart
-                      className={`w-7 h-7 transition-all ${likedItems.has(item.id) ? "fill-red-500 text-red-500 scale-110" : "text-white"}`}
+                      className={`w-7 h-7 transition-all ${item.liked ? "fill-red-500 text-red-500 scale-110" : "text-white"}`}
                     />
                   </button>
                   <span className="text-white text-xs font-medium mt-1">
-                    {formatNumber(item.likes + (likedItems.has(item.id) ? 1 : 0))}
+                    {formatNumber(item.likes)}
                   </span>
                 </div>
 
@@ -560,7 +591,12 @@ export default function FitzPage() {
 
         {/* Conteúdo principal */}
         <div className="flex-1 h-screen">
-          <div ref={containerRef} className="fitz-scroll h-full w-full overflow-y-auto snap-y snap-mandatory">
+          <div ref={containerRef} 
+          onClick={() => handleMediaClick(currentIndex)} 
+          onMouseDown={() => handleMediaPress(currentIndex)} 
+          onMouseUp={() => handleMediaRelease(currentIndex)} 
+          className="fitz-scroll h-full w-full overflow-y-auto snap-y snap-mandatory"
+        >
             {fitz.map((item, index) => (
               <div
                 key={`${item.id}-${index}`}
@@ -587,12 +623,9 @@ export default function FitzPage() {
                         playsInline
                         preload="metadata"
                         poster="/placeholder.svg?height=1920&width=1080"
-                        onMouseDown={() => handleMediaPress(index)}
-                        onMouseUp={() => handleMediaRelease(index)}
-                        onClick={handleMediaClick}
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center" onClick={handleMediaClick}>
+                      <div className="w-full h-full flex items-center justify-center">
                         <Image
                           src={item.media || "/placeholder.svg"}
                           alt="Fitz content"
@@ -658,15 +691,15 @@ export default function FitzPage() {
                     {/* Like */}
                     <div className="flex flex-col items-center">
                       <button
-                        onClick={() => handleLike(item.id)}
+                        onClick={() => handleLike(index)}
                         className="w-12 h-12 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-all active:scale-95 border border-white/20"
                       >
                         <Heart
-                          className={`w-6 h-6 transition-all ${likedItems.has(item.id) ? "fill-red-500 text-red-500 scale-110" : "text-white"}`}
+                          className={`w-6 h-6 transition-all ${item.liked ? "fill-red-500 text-red-500 scale-110" : "text-white"}`}
                         />
                       </button>
                       <span className="text-white text-xs font-medium mt-1">
-                        {formatNumber(item.likes + (likedItems.has(item.id) ? 1 : 0))}
+                        {formatNumber(item.likes)}
                       </span>
                     </div>
 
@@ -717,9 +750,7 @@ export default function FitzPage() {
         isFitz={true}
         user={user}
         onClose={() => setShowComments(false)}
-        postId={`${fitz[currentIndex]?.id > originalFitzCount ? fitz[currentIndex]?.id - originalFitzCount : fitz[currentIndex]?.id}`} // Passa o ID original
-        initialComments={comments[fitz[currentIndex]?.id > originalFitzCount ? fitz[currentIndex]?.id - originalFitzCount : fitz[currentIndex]?.id] || []} // Passa os comentários do ID original
-        onCommentAdded={handleCommentAdded}
+        postId={`${fitz[currentIndex]?.id}`} // Passa o ID original
       />
     </div>
   )

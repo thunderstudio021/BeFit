@@ -95,41 +95,42 @@ export default function PlannerPage() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
 
   async function fetchUserChallenges(userId: string) {
-  const { data, error } = await supabase
+  const { data: challenges, error } = await supabase
     .from('challange')
     .select(`
       id,
-      progress,
       post_id,
+      progress,
       posts:post_id (
-        id,
-        poll_options,
-        created_at
+        poll_options
+      ),
+      checks:challenge_check(
+        date
       )
     `)
     .eq('user_id', userId)
-
+    console.log('challenges', challenges);
   if (error) {
-    console.error('Erro ao buscar desafios do usuário:', error)
+    console.error('Erro ao buscar desafios:', error)
     return []
   }
 
-  const challenges = data.map((c:any) => {
+  return challenges.map((c: any) => {
     const opts = c.posts?.poll_options || {}
+    const lastCheck = c.checks?.sort((a, b) => b.date.localeCompare(a.date))?.[0]?.date || null
+    console.log('lastCheck', lastCheck);
     return {
       id: c.id,
-      postId: c.post_id,
       title: opts.title || 'Desafio',
       totalDays: opts.days || 0,
       completedDays: c.progress || 0,
       motivationalPhrase: getRandomPhrase(),
       completed: (c.progress || 0) >= (opts.days || 0),
-      lastCheckDate: undefined, // pode incluir se salvar a data do último check
+      lastCheckDate: lastCheck,
     }
   })
-
-  return challenges
 }
+
 
 function getRandomPhrase() {
   const phrases = [
@@ -287,9 +288,21 @@ function getRandomPhrase() {
   // Função para verificar se pode fazer check no desafio (24h)
   function canCheckChallenge(challenge: Challenge) {
     if (!challenge.lastCheckDate) return true
-    const lastCheck = challenge.lastCheckDate.split("T")[0]
-    const today = new Date().toISOString().split("T")[0]
-    return lastCheck !== today
+
+    const today = new Date()
+    
+    // Parse como UTC puro (ano, mês, dia)
+    const [year, month, day] = challenge.lastCheckDate.split('-').map(Number)
+    const lastDate = new Date(Date.UTC(year, month - 1, day))
+
+    const isSameDay =
+      today.getUTCFullYear() === lastDate.getUTCFullYear() &&
+      today.getUTCMonth() === lastDate.getUTCMonth() &&
+      today.getUTCDate() === lastDate.getUTCDate()
+
+    console.log('canCheckChallenge', lastDate.toDateString(), today.toDateString(), !isSameDay, challenge.lastCheckDate)
+
+    return !isSameDay
   }
 
   // Função para mostrar notificação
@@ -301,23 +314,25 @@ function getRandomPhrase() {
   // Adicionar água
   // Adicionar água
   const addWater = async () => {
-    const newIntake = waterIntake + 250
-    setWaterIntake(newIntake)
+    if (waterIntake < waterGoal) {
+      const newIntake = waterIntake + 250
+      setWaterIntake(newIntake)
 
-    const today = date;
+      const today = date;
 
-    // Upsert ingestão de água
-    await supabase.rpc("upsert_water_challenge", {
-      p_user_id: user.id,
-      p_date: today,
-      p_amount: 250
-    })
+      // Upsert ingestão de água
+      await supabase.rpc("upsert_water_challenge", {
+        p_user_id: user.id,
+        p_date: today,
+        p_amount: 250
+      })
 
-    if (newIntake >= waterGoal && waterIntake < waterGoal) {
-      setShowWaterCelebration(true)
-      addFitcoin(1, user)
-      showNotification("fitcoin", "Meta de Água Concluída! 💧", "Você ganhou 1 Fitcoin por manter-se hidratado!")
-      setTimeout(() => setShowWaterCelebration(false), 3000)
+      if (newIntake >= waterGoal && waterIntake < waterGoal) {
+        setShowWaterCelebration(true)
+        addFitcoin(user, 1)
+        showNotification("fitcoin", "Meta de Água Concluída! 💧", "Você ganhou 1 Fitcoin por manter-se hidratado!")
+        setTimeout(() => setShowWaterCelebration(false), 3000)
+      }
     }
   }
 
@@ -331,9 +346,8 @@ function getRandomPhrase() {
 
 async function registerChallengeCheck(challengeId: number) {
   await supabase.from('challenge_check').insert({
-    user_id: user.id,             // 🔁 Inclua o usuário
     challenge_id: challengeId,
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().split('T')[0]
   })
 }
 
@@ -380,7 +394,7 @@ const getWaterTotal = async (userId: string, date: string) => {
         const now = new Date().toISOString()
 
         if (isCompleted) {
-          addFitcoin(1, user)
+          addFitcoin(user, 1)
           showNotification("challenge", "Desafio Concluído! 🏆", "Parabéns! Você ganhou 1 Fitcoin!")
 
           // Remove o desafio após 2 segundos

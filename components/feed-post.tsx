@@ -157,9 +157,9 @@ export default function FeedPost({
       }
     }
   }
-
+  setLiked(_liked)
   fetchData()
-}, [User, postId, type, pollOptions])
+}, [User, postId, type, pollOptions, _liked])
   // Função para navegar para o perfil
   const handleProfileClick = (e: React.MouseEvent, username: string) => {
     e.stopPropagation()

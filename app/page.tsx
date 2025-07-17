@@ -231,7 +231,8 @@ export default function HomePage() {
         avatar_url,
         full_name,
         username,
-        user_type
+        user_type,
+        is_verified
       ),
       likes (
         user_id,
@@ -256,7 +257,8 @@ export default function HomePage() {
           avatar_url,
           full_name,
           username,
-          user_type
+          user_type,
+          is_verified
         ),
         likes (
           user_id,
@@ -283,6 +285,7 @@ export default function HomePage() {
   const allRawPosts = [...postsData, ...repostsAsPosts]
 
   const posts = allRawPosts.map((post: any) => {
+    console.log('post.likes?.some((like: any) => like.user_id === user?.id && like.like)', post.likes?.some((like: any) => like.user_id === user?.id && like.like));
     const userLiked = post.likes?.some((like: any) => like.user_id === user?.id && like.like)
     const userReposted = post.post_reposts?.some((repost: any) => repost.user_id === user?.id)
     const userAlreadyLiked = post.likes?.some((like: any) => like.user_id === user?.id)
@@ -310,8 +313,17 @@ export default function HomePage() {
   // Atualize a função de intercalar para usar `adsFromDb` em vez do array fixo
 
   console.log(all_posts);
-  setForYou(getIntercalatedPosts(all_posts.filter(p => p?.profiles?.user_type === 'producer' || p?.profiles?.user_type === 'admin' || p?.profiles?.is_verified), adsFromDb))
-  setCommunityPosts(getIntercalatedPosts(all_posts, adsFromDb))
+
+  // Ordena do mais novo para o mais antigo
+  const sortedPosts = all_posts.sort((a, b) => {
+    const dateA = new Date(a.createdAt).getTime()
+    const dateB = new Date(b.createdAt).getTime()
+    return dateB - dateA // Mais recentes primeiro
+  })
+  const _foryou = getIntercalatedPosts(sortedPosts.filter(p => p?.profiles?.user_type === 'producer' || p?.profiles?.user_type === 'admin' || p?.profiles?.is_verified), adsFromDb);
+  setForYou(_foryou)
+  const _comunitu = getIntercalatedPosts(sortedPosts, adsFromDb);
+  setCommunityPosts(_comunitu)
 }
 
 interface FeaturedItem {

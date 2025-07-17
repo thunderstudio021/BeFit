@@ -140,7 +140,7 @@ export default function CreatePost({ location, onClose, className, onPostCreated
         detail: {
           type: "error",
           title: "Arquivo Muito Grande! ⚠️",
-          message: "Tamanho máximo: 10MB",
+          message: "Tamanho máximo: 50MB",
         },
       })
     )

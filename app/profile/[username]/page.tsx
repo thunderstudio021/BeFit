@@ -27,23 +27,96 @@ interface UserProfile {
   isCurrentUser: boolean
 }
 
+// Tipos para os posts
 interface Post {
-  id: string
+  video_url: unknown
+  id?: string
   type: "text" | "photo" | "video" | "poll" | "challenge" | "ad"
   user: string
   avatar: string
   content: string
   image?: string
-  videoThumbnail?: string
-  backgroundColor?: string
-  pollOptions?: string[]
   likes: number
   comments: number
   shares: number
   isVerified?: boolean
-  isRepost?: boolean
-  originalUser?: string
-  originalAvatar?: string
+  adType?: string
+  price?: string
+  originalPrice?: string
+  fitcoinPrice?: number
+  discount?: string
+  externalLink?: string
+  isPremiumContent?: boolean
+  timestamp?: string
+  createdAt?: number
+  user_liked: boolean
+  already_like: boolean
+  user_reposted: boolean
+  location: string
+  username: string
+  repostedBy: string
+  isRepost: boolean
+}
+
+interface SupabasePost {
+  likes: any
+  id: string
+  type: "text" | "photo" | "video" | "poll" | "challenge" | "ad"
+  user_id: string
+  content: string
+  image_url: string | null
+  video_url: string | null
+  background_color: string | null
+  poll_options: string[] | null
+  likes_count: number
+  comments_count: number
+  shares_count: number
+  is_premium_content: boolean
+  created_at: string
+  profiles?: {
+    avatar_url: string,
+    full_name:string,
+    is_verified?: boolean
+    is_admin?: boolean,
+    username?:StatementResultingChanges
+  },
+  already_like: boolean;
+  user_liked: boolean;
+  user_reposted: boolean;
+  location:string;
+  repostedBy:string;
+  isRepost:boolean;
+}
+
+function mapSupabaseToPost(data: SupabasePost): Post {
+  return {
+    id: data.id,
+    type: data.type,
+    user: data.profiles?.full_name || "",
+    avatar: data.profiles?.avatar_url || "",
+    profiles: data.profiles,
+    content: data.content,
+    image: data.image_url || undefined,
+    videoThumbnail: data.video_url || undefined,
+    video_url: data.video_url || undefined,
+    backgroundColor: data.background_color || undefined,
+    pollOptions: data.poll_options || undefined,
+    likes: data.likes_count,
+    comments: data.comments_count,
+    shares: data.shares_count,
+    isVerified: data.profiles?.is_verified,
+    isAdmin: data.profiles?.is_admin,
+    isPremiumContent: data.is_premium_content,
+    timestamp: data.created_at,
+    createdAt: new Date(data.created_at).getTime(),
+    user_liked: data.user_liked,
+    user_reposted: data.user_reposted,
+    location: data.location,
+    already_like: data.already_like,
+    username: data.profiles?.username,
+    repostedBy:data.repostedBy,
+    isRepost: data.isRepost
+  }
 }
 
 export default function ProfilePage() {
@@ -72,34 +145,86 @@ export default function ProfilePage() {
 
     if (!profile) return
 
-    // Carrega os posts próprios do usuário
-    const { data: userPosts } = await supabase
-      .from("posts")
-      .select("*")
-      .eq("user_id", profile.id)
-
-    // Carrega os reposts do usuário
-    const { data: reposts } = await supabase
-      .from("post_reposts")
-      .select("created_at, posts(*)")
-      .eq("user_id", profile.id)
-
-    // Formata os reposts para parecerem com posts normais
-    const repostsAsPosts = reposts?.map((repost) => ({
-      ...repost.posts,
-      created_at: repost.created_at, // usa a data do repost
-      repostedBy: profile.username,
-      isRepost: true,
-    })) || []
-
-    
-    
-
-
-    // Junta posts normais com reposts e ordena por data
-    const combinedPosts = [...(userPosts || [])].sort(
-      (a, b) => new Date(b.created_at) - new Date(a.created_at)
+    // Carrega os posts próprios do usuário com relacionamentos
+const { data: userPostsData, error: userPostsError } = await supabase
+  .from("posts")
+  .select(`
+    *,
+    profiles (
+      avatar_url,
+      full_name,
+      username,
+      user_type
+    ),
+    likes (
+      user_id,
+      like
+    ),
+    post_reposts (
+      user_id
     )
+  `)
+  .eq("user_id", profile.id)
+
+
+// Carrega os reposts do usuário com os dados do post e autor original
+const { data: userRepostsData, error: userRepostsError } = await supabase
+  .from("post_reposts")
+  .select(`
+    *,
+    posts (
+      *,
+      profiles (
+        avatar_url,
+        full_name,
+        username,
+        user_type
+      ),
+      likes (
+        user_id,
+        like
+      ),
+      post_reposts (
+        user_id
+      )
+    )
+  `)
+  .eq("user_id", profile.id)
+
+if (userPostsError || userRepostsError) {
+  console.error("Erro ao carregar posts do usuário:", userPostsError || userRepostsError)
+  return
+}
+
+// Formata reposts no mesmo modelo dos posts
+const repostsAsPosts = (userRepostsData || []).map((r: any) => ({
+  ...r.posts,
+  isRepost: true,
+  repostedBy: profile.full_name,
+  original_created_at: r.created_at,
+}))
+
+// Junta todos os posts
+const allRawPosts = [...(userPostsData || []), ...repostsAsPosts]
+
+// Adiciona flags de interação do usuário
+const posts = allRawPosts.map((post: any) => {
+  const userLiked = post.likes?.some((like: any) => like.user_id === currentUserId && like.like)
+  const userReposted = post.post_reposts?.some((repost: any) => repost.user_id === currentUserId)
+  const userAlreadyLiked = post.likes?.some((like: any) => like.user_id === currentUserId)
+
+  return {
+    ...post,
+    user_liked: userLiked,
+    user_reposted: userReposted,
+    already_like: userAlreadyLiked,
+  }
+})
+
+// Ordena e mapeia para o formato final
+const combinedPosts = posts
+  .sort((a, b) => new Date(b.original_created_at || b.created_at).getTime() - new Date(a.original_created_at || a.created_at).getTime())
+  .map((v: any) => mapSupabaseToPost(v)) || []
 
     // Conta seguidores
     const { count: followersCount } = await supabase
@@ -321,20 +446,36 @@ export default function ProfilePage() {
             {userPosts.length > 0 ? (
               userPosts.map((post) => (
                 <FeedPost
-                  key={post.id}
-                  type={post.type}
-                  user={username}
-                  avatar={post.avatar}
-                  content={post.content}
-                  image={post.image}
-                  videoThumbnail={post.videoThumbnail}
-                  backgroundColor={post.backgroundColor}
-                  pollOptions={post.pollOptions}
-                  likes={post.likes}
-                  comments={post.comments}
-                  shares={post.shares}
-                  isVerified={post.isVerified}
-                />
+                                      _reposted={post.user_reposted}
+                                      type={post.type}
+                                      user={post.user}
+                                      avatar={post.avatar}
+                                      content={post.content}
+                                      image={post.image}
+                                      videoThumbnail={post.videoThumbnail}
+                                      backgroundColor={post.backgroundColor}
+                                      pollOptions={post.pollOptions}
+                                      likes={post.likes}
+                                      comments={post.comments}
+                                      shares={post.shares}
+                                      isVerified={post.isVerified}
+                                      adType={post.adType}
+                                      price={post.price}
+                                      originalPrice={post.originalPrice}
+                                      fitcoinPrice={post.fitcoinPrice}
+                                      discount={post.discount}
+                                      externalLink={post.externalLink}
+                                      isPremiumContent={post.isPremiumContent}
+                                      timestamp={post.timestamp}
+                                      originalPost={post.originalPost}
+                                      _liked={post.user_liked}
+                                      alreadyLiked={post.already_like}
+                                      postId={post.id}
+                                      username={post.username}
+                                      isRepost={post.isRepost}
+                                      repostedBy={post.repostedBy}
+                                      videoUrl={post.video_url}
+                                    />
               ))
             ) : (
               <Card>
@@ -357,24 +498,36 @@ export default function ProfilePage() {
                     </div>
                   )}
                   <FeedPost
-                    type={post.type}
-                    user={username}
-                    avatar={post.avatar}
-                    content={post.content}
-                    image={post.image}
-                    videoThumbnail={post.videoThumbnail}
-                    backgroundColor={post.backgroundColor}
-                    pollOptions={post.pollOptions}
-                    likes={post.likes}
-                    comments={post.comments}
-                    shares={post.shares}
-                    isVerified={post.isVerified} 
-                    postId={post.id} 
-                    _liked={false} 
-                    alreadyLiked={false} 
-                    _reposted={false} 
-                    username={username} 
-                    videoUrl={post.videoThumbnail}                  />
+                                        _reposted={post.user_reposted}
+                                        type={post.type}
+                                        user={post.user}
+                                        avatar={post.avatar}
+                                        content={post.content}
+                                        image={post.image}
+                                        videoThumbnail={post.videoThumbnail}
+                                        backgroundColor={post.backgroundColor}
+                                        pollOptions={post.pollOptions}
+                                        likes={post.likes}
+                                        comments={post.comments}
+                                        shares={post.shares}
+                                        isVerified={post.isVerified}
+                                        adType={post.adType}
+                                        price={post.price}
+                                        originalPrice={post.originalPrice}
+                                        fitcoinPrice={post.fitcoinPrice}
+                                        discount={post.discount}
+                                        externalLink={post.externalLink}
+                                        isPremiumContent={post.isPremiumContent}
+                                        timestamp={post.timestamp}
+                                        originalPost={post.originalPost}
+                                        _liked={post.user_liked}
+                                        alreadyLiked={post.already_like}
+                                        postId={post.id}
+                                        username={post.username}
+                                        isRepost={post.isRepost}
+                                        repostedBy={post.repostedBy}
+                                        videoUrl={post.video_url}
+                                      />
                 </div>
               ))
             ) : (
