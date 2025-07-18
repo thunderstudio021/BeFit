@@ -283,7 +283,7 @@ function ContentRow({ module }: ContentRowProps) {
               "text-lg md:text-xl font-bold cursor-pointer hover:text-gray-300 transition-colors",
               isDark ? "text-white" : "text-gray-900",
             )}
-            onClick={() => (window.location.href = `/premium/modulo/${module.id}`)}
+            onClick={() => (window.location.href = `/premium/modulo/${module.id}/0`)}
           >
             {module.title}
           </h2>

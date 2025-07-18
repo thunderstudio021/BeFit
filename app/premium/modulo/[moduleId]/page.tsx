@@ -8,6 +8,7 @@ import AppLayout from "@/components/app-layout"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/contexts/theme-context"
 import { supabase } from "@/lib/supabase"
+import { useUser } from "@supabase/auth-helpers-react"
 function formatDuration(seconds:any) {
   if (!seconds) return "00:00"
   const m = String(Math.floor(seconds / 60)).padStart(2, "0")
@@ -30,6 +31,8 @@ export default function ModulePage({ params }: { params: { moduleId: string } })
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showSpeedMenu, setShowSpeedMenu] = useState(false)
   const [videoEnded, setVideoEnded] = useState(false)
+
+  const user = useUser();
 
   const [moduleData, setModuleData] = useState<any>({
   id: 0,
@@ -56,13 +59,60 @@ export default function ModulePage({ params }: { params: { moduleId: string } })
   },
 })
 
+const saveProgress = async (time: number, progressPercent: number) => {
+  if (Math.abs(time - lastSavedTime) < 3) return
+  lastSavedTime = time
+
+  localStorage.setItem(`lesson_${currentLesson.id}_time`, time.toString())
+  localStorage.setItem(`lesson_${currentLesson.id}_progress`, progressPercent.toString())
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  // Upsert para evitar duplicidade
+  const { error } = await supabase
+    .from("premium_videos_progress")
+    .upsert(
+      {
+        user_id: user.id,
+        video_id: currentLesson.id,
+        watched_time: time,
+        progress_percent: Math.round(progressPercent),
+      },
+      { onConflict: "user_id,video_id" } // Atualiza se já existir
+    )
+
+  if (error) console.error("Erro ao salvar progresso no Supabase:", error)
+
+  // Marcar como concluído
+  if (progressPercent > 90) {
+    const updatedLessons = moduleData.lessons.map((lesson) =>
+      lesson.id === currentLesson.id ? { ...lesson, completed: true } : lesson
+    )
+    localStorage.setItem(`module_${moduleData.id}_lessons`, JSON.stringify(updatedLessons))
+  }
+}
+
 const [currentLesson, setCurrentLesson] = useState(moduleData.lessons[0])
 
-function displayVideo(base64DataUrl: string) {
+async function displayVideo(base64DataUrl: string) {
   if (!videoRef.current) return;
 
-  // Define diretamente o src com o data URL (formato já está pronto para uso)
-  videoRef.current.src = base64DataUrl;
+    // Define diretamente o src com o data URL (formato já está pronto para uso)
+    videoRef.current.src = base64DataUrl;
+
+    const { data: progressData } = await supabase
+    .from("premium_videos_progress")
+    .select("watched_time, progress_percent")
+    .eq("user_id", user.id)
+    .eq("video_id", currentLesson.id)
+    .single()
+
+  if (progressData) {
+    videoRef.current.currentTime = progressData.watched_time || 0
+    setProgress(progressData.progress_percent || 0)
+    setCurrentTime(progressData.watched_time || 0)
+  }
 }
 
 useEffect(() => {
@@ -107,6 +157,7 @@ useEffect(() => {
         completed: false,
         videoUrl: video.video_url || "/placeholder-video.mp4",
         thumbnail: video.thumbnail_url || "/placeholder.svg?height=400&width=600",
+        material_title: video.material_url || "",
         watchedTime: 0,
         totalDuration: video.duration || 0,
       })),
@@ -142,20 +193,6 @@ useEffect(() => {
       setCurrentTime(Number.parseFloat(savedTime))
     }
   }, [])
-
-  // Salvar progresso no localStorage
-  const saveProgress = (time: number, progressPercent: number) => {
-    localStorage.setItem(`lesson_${currentLesson.id}_time`, time.toString())
-    localStorage.setItem(`lesson_${currentLesson.id}_progress`, progressPercent.toString())
-
-    // Marcar como concluído se assistiu mais de 90%
-    if (progressPercent > 90) {
-      const updatedLessons = moduleData.lessons.map((lesson) =>
-        lesson.id === currentLesson.id ? { ...lesson, completed: true } : lesson,
-      )
-      localStorage.setItem(`module_${moduleData.id}_lessons`, JSON.stringify(updatedLessons))
-    }
-  }
 
   // Countdown timer para próximo vídeo
   useEffect(() => {
@@ -335,7 +372,7 @@ useEffect(() => {
                 </div>
                 <div className="ml-auto">
                   <span className={cn("text-sm px-2 py-1 rounded", isDark ? "bg-gray-800" : "bg-gray-200")}>
-                    {moduleData.progress}%
+                    aaa{progress}%
                   </span>
                 </div>
               </div>
@@ -345,6 +382,8 @@ useEffect(() => {
             <div ref={containerRef} className="relative aspect-video bg-gray-900">
               <video
                 ref={videoRef}
+                playsinline
+                webkit-playsinline
                 className="w-full h-full object-cover"
                 poster={currentLesson.thumbnail}
                 onPlay={() => setIsPlaying(true)}
@@ -510,7 +549,7 @@ useEffect(() => {
                 </div>
                 <div>
                   <span className={cn("text-sm px-2 py-1 rounded", isDark ? "bg-gray-800" : "bg-gray-200")}>
-                    {moduleData.progress}%
+                    {progress}%
                   </span>
                 </div>
               </div>

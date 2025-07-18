@@ -67,6 +67,23 @@ export default function AuthPage() {
     window.location.href = "/"
   }
 
+  function formatPhone(value: string) {
+    // Remove tudo que não for número
+    const cleaned = value.replace(/\D/g, '');
+
+    // Aplica máscara conforme a quantidade de dígitos
+    if (cleaned.length <= 2) return `(${cleaned}`;
+    if (cleaned.length <= 7) return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2)}`;
+    if (cleaned.length <= 11) return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`;
+    return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7, 11)}`;
+  }
+
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const formatted = formatPhone(e.target.value);
+      setRegisterData({ ...registerData, whatsapp: formatted });
+    };
+
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -136,7 +153,7 @@ export default function AuthPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="whatsapp" className="text-gray-300">WhatsApp</Label>
-                    <Input id="whatsapp" required value={registerData.whatsapp} onChange={(e) => setRegisterData({ ...registerData, whatsapp: e.target.value })} className="bg-gray-700 text-white" />
+                    <Input id="whatsapp" required value={registerData.whatsapp} onChange={(e) => handlePhoneChange(e)} className="bg-gray-700 text-white" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password" className="text-gray-300">Senha</Label>

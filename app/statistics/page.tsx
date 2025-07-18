@@ -8,6 +8,7 @@ import AppLayout from "@/components/app-layout"
 import { useEffect, useState } from "react"
 import { formatInTimeZone } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
+import { useUser } from "@/hooks/useUser"
 
 interface CompletedChallenge {
   id: number
@@ -100,8 +101,10 @@ export default function StatisticsPage() {
     const userId = authData?.user?.id
     if (!userId) return
 
+    let totalEarned = 0
+
     // 1. Buscar todos os desafios do usuário
-    const { data: challenges, error } = await supabase
+    const { data: challenges } = await supabase
       .from("challange")
       .select(`
         id,
@@ -114,23 +117,16 @@ export default function StatisticsPage() {
       `)
       .eq("user_id", userId)
 
-    if (error) {
-      console.error("Erro ao buscar desafios:", error)
-      return
-    }
-
     const completed: CompletedChallenge[] = []
     const ongoing: OngoingChallenge[] = []
 
-    let totalEarned = 0
-
-    challenges.forEach((c:any) => {
+    challenges?.forEach((c: any) => {
       const opts = c.posts?.poll_options || {}
       const totalDays = opts.days || 0
       const name = opts.title || "Desafio"
       const category = opts.category || "Geral"
       const completedDays = c.progress || 0
-      const progressPercent = Math.floor((completedDays / totalDays) * 100)
+      const progressPercent = totalDays > 0 ? Math.floor((completedDays / totalDays) * 100) : 0
       const remainingDays = totalDays - completedDays
 
       if (completedDays >= totalDays) {
@@ -138,7 +134,7 @@ export default function StatisticsPage() {
           id: c.id,
           name,
           completionDate: new Date().toISOString(),
-          fitcoinsEarned: 1, // ou qualquer lógica de recompensa
+          fitcoinsEarned: 1,
           category,
         })
         totalEarned += 1
@@ -155,8 +151,36 @@ export default function StatisticsPage() {
       }
     })
 
-    // 2. Buscar gastos em Fitcoins
-    const { data: purchases, error: purchasesError } = await supabase
+    // 2. Buscar quantidade de likes (likes e fitz_likes)
+    const { count: likesCount } = await supabase
+      .from("likes")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+
+    const { count: fitzLikesCount } = await supabase
+      .from("fitz_likes")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+
+    // 3. Buscar comentários (comments e comments_fitz)
+    const { count: commentsCount } = await supabase
+      .from("comments")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+
+    const { count: fitzCommentsCount } = await supabase
+      .from("comments_fitz")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+
+    // 4. Buscar reposts
+    const { count: repostsCount } = await supabase
+      .from("post_reposts")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+
+    // 5. Buscar gastos em Fitcoins
+    const { data: purchases } = await supabase
       .from("purchases")
       .select("price_paid")
       .eq("user_id", userId)
@@ -164,14 +188,30 @@ export default function StatisticsPage() {
 
     const totalSpent = purchases?.reduce((acc, p) => acc + Number(p.price_paid), 0) || 0
 
-    // 3. Atualiza estados
+    // 6. Buscar profile
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single()
+
+    // 7. Somar total de Fitcoins ganhos
+    totalEarned +=
+      (likesCount || 0) +
+      (fitzLikesCount || 0) +
+      (commentsCount || 0) +
+      (fitzCommentsCount || 0) +
+      (repostsCount || 0)
+
+    // 8. Atualiza estados
     setCompletedChallenges(completed)
     setOngoingChallenges(ongoing)
     setFitcoinSummary({
       earned: totalEarned,
       spent: totalSpent,
-      balance: totalEarned - totalSpent,
+      balance: profileData?.fitcoins,
     })
+    setProfile(profileData)
   }
 
   loadChallengeData()

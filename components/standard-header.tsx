@@ -10,26 +10,45 @@ import { useUser } from '@supabase/auth-helpers-react'
 import { useEffect, useState } from "react"
 import { getUserProfile } from "@/lib/services/profileService"
 import { useFitcoin } from "@/hooks/use-fitcoin"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { supabase } from "@/lib/supabase"
+
 export default function StandardHeader() {
   const { isDark, toggleTheme } = useTheme()
   const user = useUser()
   const [profile, setProfile] = useState<any>(null)
-  const {setFitcoin}=useFitcoin();
+  const [unreadCount, setUnreadCount] = useState(0)
+  const { setFitcoin } = useFitcoin()
 
   useEffect(() => {
     if (!user) return
 
+    // Carrega o perfil e fitcoins
     getUserProfile(user.id)
-      .then((data) => {setProfile(data);setFitcoin(data.fitcoins)})
-      .catch((err) => console.error(err))
+      .then((data) => {
+        setProfile(data)
+        setFitcoin(data.fitcoins)
+      })
+      .catch(console.error)
+
+    // Carrega total de notificações não lidas
+    supabase
+      .from("notifications")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("is_read", false)
+      .then(({ count, error }) => {
+        if (error) throw error
+        setUnreadCount(count || 0)
+      })
+
   }, [user])
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-background/80 backdrop-blur-md border-b border-border/50">
       <div className="flex items-center gap-2">
-        <span className="text-xl font-bold">
-          <span className="text-gradient">BB</span>
-          <span className="text-foreground">fitness</span>
+        <span className="text-xl font-bold" style={{maxWidth: 80}}>
+          <img src={!isDark ? "https://efjnuswulzfgztlwpxvu.supabase.co/storage/v1/object/public/befit//BEFIT---LOGO-PRETA.png":"https://efjnuswulzfgztlwpxvu.supabase.co/storage/v1/object/public/befit//BEFIT---LOGO-BRANCA.png"} />
         </span>
       </div>
       <div className="flex items-center gap-4">
@@ -50,14 +69,15 @@ export default function StandardHeader() {
               className="rounded-full hover:bg-purple-500/10 hover:text-purple-500 transition-all duration-300 relative"
             >
               <Bell className="w-5 h-5" />
-              {/* Badge de notificação */}
-              <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-orange-500 rounded-full flex items-center justify-center">
-                <span className="text-[10px] text-white font-bold">3</span>
-              </div>
+              {unreadCount > 0 && (
+                <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-orange-500 rounded-full flex items-center justify-center">
+                  <span className="text-[10px] text-white font-bold">{unreadCount}</span>
+                </div>
+              )}
             </Button>
           </Link>
         </div>
-        <ProfileMenu profile={profile}/>
+        <ProfileMenu profile={profile} />
       </div>
     </header>
   )

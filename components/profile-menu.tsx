@@ -29,7 +29,7 @@ export default function ProfileMenu(props:any) {
       <SheetTrigger asChild>
         <Avatar className="w-8 h-8 border-2 border-purple-500 cursor-pointer shadow-glow-purple">
           <Image
-            src="/placeholder.svg?height=32&width=32"
+            src={profile.avatar_url ? profile.avatar_url : "/placeholder.svg?height=32&width=32"}
             alt="Avatar"
             width={32}
             height={32}
@@ -42,7 +42,7 @@ export default function ProfileMenu(props:any) {
           <div className="flex items-center gap-3">
             <Avatar className="w-16 h-16 border-2 border-purple-500 shadow-glow-purple">
               <Image
-                src="/placeholder.svg?height=64&width=64"
+                src={profile.avatar_url ? profile.avatar_url : "/placeholder.svg?height=64&width=64"}
                 alt="Avatar"
                 width={64}
                 height={64}
@@ -54,14 +54,14 @@ export default function ProfileMenu(props:any) {
               <p className="text-sm text-muted-foreground">@{profile?.username}</p>
               <div className="flex items-center gap-1 mt-1">
                 <Crown className="w-4 h-4 text-yellow-500" />
-                <span className="text-xs text-yellow-500">Premium</span>
+                <span className="text-xs text-yellow-500">{profile?.user_type.charAt(0).toUpperCase() + profile?.user_type.slice(1).toLowerCase()}</span>
               </div>
             </div>
           </div>
         </SheetHeader>
 
         <div className="space-y-2">
-          <Link href="/profile/edit">
+          <Link href={"/profile/"+profile?.username}>
             <Button
               variant="ghost"
               className="w-full justify-start gap-3 h-12 hover:bg-purple-500/10 hover:text-purple-500 transition-all duration-300"
@@ -124,7 +124,7 @@ export default function ProfileMenu(props:any) {
                 <Button
                   size="sm"
                   className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white"
-                  onClick={() => setIsOpen(false)}
+                  onClick={() => window.location.href = `https://lastlink.com/p/C4D8D0865/checkout-payment`}
                 >
                   Assine Agora
                 </Button>

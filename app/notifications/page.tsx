@@ -121,9 +121,25 @@ export default function NotificationsPage() {
     }
   }
 
-  const markAsRead = (id: string) => {
-    setNotifications((prev) => prev.map((notif) => (notif.id === id ? { ...notif, isRead: true } : notif)))
+  const markAsRead = async (id: string) => {
+  // Atualiza no Supabase
+  const { error } = await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("id", id)
+
+  if (error) {
+    console.error("Erro ao marcar como lida:", error)
+    return
   }
+
+  // Atualiza no estado local (para UI)
+  setNotifications((prev) =>
+    prev.map((notif) =>
+      notif.id === id ? { ...notif, isRead: true } : notif
+    )
+  )
+}
 
   const markAllAsRead = () => {
     setNotifications((prev) => prev.map((notif) => ({ ...notif, isRead: true })))

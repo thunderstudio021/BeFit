@@ -130,6 +130,7 @@ const [digitalProducts, setDigitalProducts] = useState([
       name: p.name,
       image: p.image_url || "/placeholder.svg",
       price: p.fitcoin_price || 0,
+      fitcoin_price: p.fitcoin_price || 0,
       originalPrice: p.real_price || 0,
       external_link: p.external_link,
       real_price: p.real_price,
@@ -178,6 +179,7 @@ const [digitalProducts, setDigitalProducts] = useState([
 
   // Função para processar a compra com Fitcoins
   const handlePurchase = async (product: any) => {
+    console.log('fittt', fitcoin);
     if (fitcoin >= product.fitcoin_price) {
       // 1️⃣ Desconta Fitcoins do profile no Supabase
       const { data: userProfile, error: userError } = await supabase
@@ -230,7 +232,7 @@ const [digitalProducts, setDigitalProducts] = useState([
       }
 
       // 4️⃣ Atualiza o estado local de Fitcoins e compras
-      addFitcoin(-product.fitcoin_price, false) // Atualiza client-side
+      addFitcoin(user, -product.fitcoin_price) // Atualiza client-side
       addToPurchases({
         id: product.id,
         title: product.title,
@@ -294,17 +296,14 @@ const [digitalProducts, setDigitalProducts] = useState([
               <div className="absolute inset-0 bg-gradient-to-r from-orange-500/60 via-orange-500/40 to-purple-500/60" />
 
               {/* Conteúdo do banner */}
-              <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-4 sm:p-6 md:p-8">
+              {/* <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-4 sm:p-6 md:p-8">
                 <Button
                   
                   className="bg-gradient-to-r from-orange-500 to-purple-600 hover:from-orange-600 hover:to-purple-700 text-white border-0 shadow-glow-orange px-6 sm:px-8 py-2 sm:py-3 text-sm sm:text-base font-semibold rounded-full transition-all duration-300 hover:scale-105"
                 >
                   {storeBannerData.buttonText}
                 </Button>
-              </div>
-
-              {/* Efeito de brilho */}
-              <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/5 to-transparent opacity-50" />
+              </div> */}
             </div>
           </div>
         )}

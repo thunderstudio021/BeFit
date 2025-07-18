@@ -132,6 +132,8 @@ export default function FitzPage() {
     setComments(initialComments)
   }, [])
 
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
 
 
 
@@ -330,7 +332,7 @@ export default function FitzPage() {
           newSet.add(originalItemId)
           return newSet
         })
-        addFitcoin(1) // Adiciona exatamente 1 fitcoin apenas no primeiro repost
+        addFitcoin(user, 1) // Adiciona exatamente 1 fitcoin apenas no primeiro repost
         // Simular repost no feed
         alert(`@${username} repostou`)
       } else {
@@ -438,13 +440,14 @@ export default function FitzPage() {
       `}</style>
 
       {/* MOBILE: Formato vertical tela cheia estilo TikTok/Reels */}
+      {isMobile && (
       <div className="md:hidden h-screen w-screen bg-black overflow-hidden">
         <div ref={containerRef} 
-        onMouseDown={() => handleMediaPress(currentIndex)}
+                    onMouseDown={() => handleMediaPress(currentIndex)}
                     onMouseUp={() => handleMediaRelease(currentIndex)}
                     onTouchStart={() => handleMediaPress(currentIndex)}
                     onTouchEnd={() => handleMediaRelease(currentIndex)}
-          onClick={() => handleMediaClick(currentIndex)} 
+                    onClick={() => handleMediaClick(currentIndex)} 
         className="fitz-scroll h-full w-full overflow-y-auto snap-y snap-mandatory">
           {fitz.map((item, index) => (
             <div
@@ -581,7 +584,7 @@ export default function FitzPage() {
         </div>
         <BottomNavigation />
       </div>
-
+      )}
       {/* DESKTOP: Com menu lateral padrão */}
       <div className="hidden md:flex h-screen w-full bg-black overflow-hidden">
         {/* Menu lateral */}
@@ -590,6 +593,8 @@ export default function FitzPage() {
         </div>
 
         {/* Conteúdo principal */}
+        {!isMobile && (
+        
         <div className="flex-1 h-screen">
           <div ref={containerRef} 
           onClick={() => handleMediaClick(currentIndex)} 
@@ -742,6 +747,7 @@ export default function FitzPage() {
             ))}
           </div>
         </div>
+        )}
       </div>
 
       {/* Modal de Comentários Padrão */}

@@ -39,9 +39,9 @@ export async function middleware(req: NextRequest) {
     }
 
     // Se user_type não for admin ou producer, bloqueia acesso às rotas admin, dashboard, etc
-    if (["/planner", "/fitz", "/store"].some(route => pathname.startsWith(route)) && 
+    if (["/planner", "/fitz", "/store", "/premium"].some(route => pathname.startsWith(route)) && 
         profile.user_type !== "admin" && profile.user_type !== "producer" && profile.user_type !== "premium") {
-      return NextResponse.redirect(new URL("/", req.url))
+      return NextResponse.redirect(new URL("/premium/subscribe", req.url))
     }
   }
 

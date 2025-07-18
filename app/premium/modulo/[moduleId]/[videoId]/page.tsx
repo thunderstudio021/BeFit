@@ -32,6 +32,8 @@ export default function ModulePage({ params }: { params: {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showSpeedMenu, setShowSpeedMenu] = useState(false)
   const [videoEnded, setVideoEnded] = useState(false)
+  const [downloadMaterial, setDownloadMaterial] = useState(``)
+  
 
   const [moduleData, setModuleData] = useState<any>({
   id: 0,
@@ -50,6 +52,7 @@ export default function ModulePage({ params }: { params: {
       thumbnail: "/placeholder.svg?height=400&width=600",
       watchedTime: 0,
       totalDuration: 0,
+      material_title: "aaaaaa"
     }
   ],
   downloadMaterial: {
@@ -110,14 +113,19 @@ useEffect(() => {
         completed: false,
         videoUrl: video.video_url || "/placeholder-video.mp4",
         thumbnail: video.thumbnail_url || "/placeholder.svg?height=400&width=600",
+        material_title: video.material_title,
         watchedTime: 0,
         totalDuration: video.duration || 0,
       })),
       downloadMaterial: {
-        title: module.material_title || "Material não informado",
+        title: videos[parseInt(videoId)].material_title || "Material não informado",
         icon: "📎",
       },
     }
+
+    setDownloadMaterial(videos[parseInt(videoId)].material_url)
+
+
 
     setModuleData(formattedModule);
     displayVideo(formattedModule.lessons[parseInt(videoId)].videoUrl)
@@ -134,8 +142,8 @@ useEffect(() => {
 
   // Carregar progresso salvo do localStorage
   useEffect(() => {
-    const savedProgress = localStorage.getItem(`lesson_${currentLesson.id}_progress`)
-    const savedTime = localStorage.getItem(`lesson_${currentLesson.id}_time`)
+    const savedProgress = localStorage.getItem(`module_${moduleData.id}_lesson_${currentLesson.id}_progress`)
+    const savedTime = localStorage.getItem(`module_${moduleData.id}_lesson_${currentLesson.id}_time`)
 
     if (savedProgress) {
       setProgress(Number.parseFloat(savedProgress))
@@ -147,14 +155,33 @@ useEffect(() => {
   }, [])
 
   // Salvar progresso no localStorage
-  const saveProgress = (time: number, progressPercent: number) => {
-    localStorage.setItem(`lesson_${currentLesson.id}_time`, time.toString())
-    localStorage.setItem(`lesson_${currentLesson.id}_progress`, progressPercent.toString())
-
-    // Marcar como concluído se assistiu mais de 90%
+  const saveProgress = async (time: number, progressPercent: number) => {
+  
+    localStorage.setItem(`module_${moduleData.id}_lesson_${currentLesson.id}_time`, time.toString())
+    localStorage.setItem(`module_${moduleData.id}_lesson_${currentLesson.id}_progress`, progressPercent.toString())
+  
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+  
+    // Upsert para evitar duplicidade
+    const { error } = await supabase
+      .from("premium_videos_progress")
+      .upsert(
+        {
+          user_id: user.id,
+          video_id: currentLesson.id,
+          watched_time: time,
+          progress_percent: Math.round(progressPercent),
+        },
+        { onConflict: "user_id,video_id" } // Atualiza se já existir
+      )
+  
+    if (error) console.error("Erro ao salvar progresso no Supabase:", error)
+  
+    // Marcar como concluído
     if (progressPercent > 90) {
       const updatedLessons = moduleData.lessons.map((lesson) =>
-        lesson.id === currentLesson.id ? { ...lesson, completed: true } : lesson,
+        lesson.id === currentLesson.id ? { ...lesson, completed: true } : lesson
       )
       localStorage.setItem(`module_${moduleData.id}_lessons`, JSON.stringify(updatedLessons))
     }
@@ -170,20 +197,21 @@ useEffect(() => {
     }
   }, [countdown, showCountdown])
 
-  // Atualizar tempo do vídeo
-  useEffect(() => {
-    const video = videoRef.current
+  const updateTime = () => {
+      const video = videoRef.current
     if (!video) return
-
-    const updateTime = () => {
       setCurrentTime(video.currentTime)
       setDuration(video.duration || 0)
+      // setVideoDuration(video.duration)
       const progressPercent = (video.currentTime / video.duration) * 100
+      console.log(progressPercent, video.currentTime, video.duration);
       setProgress(progressPercent)
       saveProgress(video.currentTime, progressPercent)
     }
 
     const handleEnded = () => {
+      const video = videoRef.current
+    if (!video) return
       setVideoEnded(true)
       setIsPlaying(false)
 
@@ -200,6 +228,13 @@ useEffect(() => {
         setCountdown(5)
       }
     }
+const setVideoDuration = (duration:any) => {const _module = {...moduleData}; _module.lessons[currentLesson.id].duration = duration;setModuleData(_module)}
+  // Atualizar tempo do vídeo
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    
 
     video.addEventListener("timeupdate", updateTime)
     video.addEventListener("ended", handleEnded)
@@ -210,7 +245,7 @@ useEffect(() => {
       video.removeEventListener("ended", handleEnded)
       video.removeEventListener("loadedmetadata", updateTime)
     }
-  }, [])
+  }, [setProgress, saveProgress])
 
   const handlePlayPause = () => {
     const video = videoRef.current
@@ -243,12 +278,26 @@ useEffect(() => {
   }
 
   const handleLessonSelect = (lesson: (typeof moduleData.lessons)[0]) => {
+    //window.location.href = `/premium/modulo/${moduleData.id}/${lesson.id-1}`;
     setCurrentLesson(lesson)
     setIsPlaying(false)
     setShowCountdown(false)
     setVideoEnded(false)
     setCurrentTime(0)
     setProgress(0)
+    displayVideo(lesson.videoUrl);
+    setModuleData({...moduleData, downloadMaterial: {...moduleData.downloadMaterial, title: lesson.material_title,}})
+    setDownloadMaterial(lesson.material_url)
+    const savedProgress = localStorage.getItem(`module_${moduleData.id}_lesson_${lesson.id}_progress`)
+    const savedTime = localStorage.getItem(`module_${moduleData.id}_lesson_${currentLesson.id}_time`)
+
+    if (savedProgress) {
+      setProgress(Number.parseFloat(savedProgress))
+    }
+    if (savedTime && videoRef.current) {
+      videoRef.current.currentTime = Number.parseFloat(savedTime)
+      setCurrentTime(Number.parseFloat(savedTime))
+    }
   }
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -338,7 +387,7 @@ useEffect(() => {
                 </div>
                 <div className="ml-auto">
                   <span className={cn("text-sm px-2 py-1 rounded", isDark ? "bg-gray-800" : "bg-gray-200")}>
-                    {moduleData.progress}%
+                    {progress.toFixed(1) || 0}%
                   </span>
                 </div>
               </div>
@@ -467,6 +516,7 @@ useEffect(() => {
 
               {/* Download Material */}
               <div
+                onClick={() => {window.open(downloadMaterial, '_download_premium_material')}}
                 className={cn(
                   "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors",
                   isDark ? "bg-gray-800 hover:bg-gray-700" : "bg-gray-100 hover:bg-gray-200",
@@ -487,6 +537,7 @@ useEffect(() => {
 
               {/* Download Material */}
               <div
+                onClick={() => {window.open(downloadMaterial, '_download_premium_material')}}
                 className={cn(
                   "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors",
                   isDark ? "bg-gray-800 hover:bg-gray-700" : "bg-gray-100 hover:bg-gray-200",
@@ -513,7 +564,7 @@ useEffect(() => {
                 </div>
                 <div>
                   <span className={cn("text-sm px-2 py-1 rounded", isDark ? "bg-gray-800" : "bg-gray-200")}>
-                    {moduleData.progress}%
+                    {progress.toFixed(1) || 0}%
                   </span>
                 </div>
               </div>
@@ -533,7 +584,7 @@ useEffect(() => {
 
               <div className="space-y-3">
                 {moduleData.lessons.map((lesson) => {
-                  const savedProgress = localStorage.getItem(`lesson_${lesson.id}_progress`)
+                  const savedProgress = localStorage.getItem(`module_${moduleData.id}_lesson_${lesson.id}_progress`)
                   const isCompleted = savedProgress ? Number.parseFloat(savedProgress) > 90 : lesson.completed
 
                   return (
@@ -603,7 +654,7 @@ useEffect(() => {
 
             <div className="space-y-3">
               {moduleData.lessons.map((lesson) => {
-                const savedProgress = localStorage.getItem(`lesson_${lesson.id}_progress`)
+                const savedProgress = localStorage.getItem(`module_${moduleData.id}_lesson_${lesson.id}_progress`)
                 const isCompleted = savedProgress ? Number.parseFloat(savedProgress) > 90 : lesson.completed
 
                 return (

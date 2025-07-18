@@ -54,7 +54,6 @@ import { useUser } from "@/hooks/useUser"
 export default function AdminDashboard() {
   const [progress, setProgress] = useState(13)
   const [activeTab, setActiveTab] = useState("stats")
-  const [chartData, setChartData] = useState<number[]>([35, 55, 42, 58, 63, 70, 78])
   const [isLoaded, setIsLoaded] = useState(false);
   const user = useUser();
   const [mockFitzContent, setMockFitzContent] = useState([
@@ -525,6 +524,7 @@ useEffect(() => {
     video_url: "",
     thumbnail_url: "",
     material_url: "",
+    material_title: ""
   })
 
   // Add ad management functions after existing functions
@@ -675,15 +675,11 @@ useEffect(() => {
       })
     }, 50)
 
-    // Simulate chart data animation
-    const chartInterval = setInterval(() => {
-      setChartData((prev) => prev.map((v) => Math.max(20, Math.min(90, v + Math.random() * 6 - 3))))
-    }, 2000)
+
 
     return () => {
       clearTimeout(timer)
       clearInterval(interval)
-      clearInterval(chartInterval)
       document.body.style.overflow = "unset"
     }
   }, [showUserModal, showProductModal, showFitzModal, showModuleModal, showVideoModal, showPushModal, showAdModal])
@@ -847,6 +843,89 @@ useEffect(() => {
     setShowFitzModal(true)
   }
 
+  const [chartData, setChartData] = useState<number[]>([])
+  const [totalUsers, setTotalUsers] = useState(0)
+  const [newUsers, setNewUsers] = useState(0)
+  const [activeUsersPct, setActiveUsersPct] = useState(0)
+
+  const [totalRevenue, setTotalRevenue] = useState(0)
+  const [premiumRevenue, setPremiumRevenue] = useState(0)
+  const [storeRevenue, setStoreRevenue] = useState(0)
+
+  const [activities, setActivities] = useState<
+    { icon: string; title: string; message: string; color: string }[]
+  >([])
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      const startOfMonth = new Date()
+      startOfMonth.setDate(1)
+
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+
+      // Perfis criados nos últimos 7 dias
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("created_at, is_premium")
+        .gte("created_at", sevenDaysAgo.toISOString())
+
+      const total = profiles?.length || 0
+      const active = profiles?.filter(p => p.is_premium).length || 0
+      const grouped = Array(7).fill(0)
+
+      profiles?.forEach(p => {
+        const diff = Math.floor((new Date().getTime() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24))
+        if (diff < 7) grouped[6 - diff] += 1
+      })
+
+      setChartData(grouped.map(v => v * 10))
+      setTotalUsers(total)
+      setNewUsers(grouped.reduce((a, b) => a + b, 0))
+      setActiveUsersPct(Math.round((active / total) * 100) || 0)
+
+      // Receita
+      const { data: purchases } = await supabase
+        .from("purchases")
+        .select("price_paid, currency")
+        .eq("status", "completed")
+        .gte("created_at", startOfMonth.toISOString())
+
+      const { data: subscriptions } = await supabase
+        .from("subscriptions")
+        .select("amount")
+        .eq("status", "active")
+        .gte("created_at", startOfMonth.toISOString())
+
+      const store = purchases?.filter(p => p.currency === "real")
+        .reduce((acc, cur) => acc + Number(cur.price_paid), 0) || 0
+      const sub = subscriptions?.reduce((acc, cur) => acc + Number(cur.amount), 0) || 0
+      setStoreRevenue(store)
+      setPremiumRevenue(sub)
+      setTotalRevenue(store + sub)
+
+      // Atividades recentes
+      const { data: notifications } = await supabase
+        .from("notifications")
+        .select("type, title, message, created_at")
+        .order("created_at", { ascending: false })
+        .limit(3)
+
+      const mapped = notifications?.map(n => ({
+        title: n.title,
+        message: n.message,
+        icon: n.type,
+        color:
+          n.type === "user" ? "green" :
+          n.type === "purchase" ? "blue" :
+          n.type === "content" ? "purple" : "gray",
+      })) || []
+
+      setActivities(mapped)
+    }
+
+    fetchStats()
+  }, [])
+
   const handleFitzSave = async () => {
     alert(`Conteúdo Fitz ${editingFitz.id ? "atualizado" : "criado"} com sucesso!`)
     if(editingFitz.id){
@@ -955,6 +1034,7 @@ const { error: updateError } = await supabase
       video_url: "",
       thumbnail_url: "",
       material_url: "",
+      material_title: ""
     })
     setSelectedModuleId(null)
     setShowVideoModal(false)
@@ -1452,7 +1532,7 @@ const { error: updateError } = await supabase
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-muted-foreground">Últimos 7 dias</span>
-                        <span className="text-sm font-medium text-green-500">+12.5%</span>
+                        <span className="text-sm font-medium text-green-500">+{newUsers}</span>
                       </div>
                       <div className="h-32 flex items-end justify-between gap-2">
                         {chartData.map((value, index) => (
@@ -1465,15 +1545,15 @@ const { error: updateError } = await supabase
                       </div>
                       <div className="grid grid-cols-3 gap-4 text-center">
                         <div>
-                          <p className="text-lg font-bold text-foreground">12,500</p>
+                          <p className="text-lg font-bold text-foreground">{totalUsers}</p>
                           <p className="text-xs text-muted-foreground">Total</p>
                         </div>
                         <div>
-                          <p className="text-lg font-bold text-green-500">+342</p>
+                          <p className="text-lg font-bold text-green-500">+{newUsers}</p>
                           <p className="text-xs text-muted-foreground">Esta semana</p>
                         </div>
                         <div>
-                          <p className="text-lg font-bold text-blue-500">89%</p>
+                          <p className="text-lg font-bold text-blue-500">{activeUsersPct}%</p>
                           <p className="text-xs text-muted-foreground">Ativos</p>
                         </div>
                       </div>
@@ -1492,22 +1572,22 @@ const { error: updateError } = await supabase
                   <CardContent>
                     <div className="space-y-4">
                       <div className="text-center">
-                        <p className="text-2xl font-bold text-foreground">R$ 95.420</p>
+                        <p className="text-2xl font-bold text-foreground">R$ {totalRevenue.toFixed(2)}</p>
                         <p className="text-sm text-green-500">+15.2% vs mês anterior</p>
                       </div>
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span className="text-sm text-muted-foreground">Assinaturas Premium</span>
-                          <span className="text-sm font-medium">R$ 67.200</span>
+                          <span className="text-sm font-medium">R$ {premiumRevenue.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm text-muted-foreground">Loja Fitcoin</span>
-                          <span className="text-sm font-medium">R$ 28.220</span>
+                          <span className="text-sm font-medium">R$ {storeRevenue.toFixed(2)}</span>
                         </div>
                         <div className="w-full bg-muted rounded-full h-2">
                           <div
                             className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full"
-                            style={{ width: "70%" }}
+                            style={{ width: `${(premiumRevenue / totalRevenue) * 100 || 0}%` }}
                           ></div>
                         </div>
                       </div>
@@ -1525,35 +1605,19 @@ const { error: updateError } = await supabase
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                        <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                          <Users className="w-4 h-4 text-white" />
+                      {activities.map((act, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                          <div className={`w-8 h-8 bg-${act.color}-500 rounded-full flex items-center justify-center`}>
+                            {act.icon === "user" && <Users className="w-4 h-4 text-white" />}
+                            {act.icon === "purchase" && <ShoppingBag className="w-4 h-4 text-white" />}
+                            {act.icon === "content" && <Video className="w-4 h-4 text-white" />}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-foreground">{act.title}</p>
+                            <p className="text-xs text-muted-foreground">{act.message}</p>
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-foreground">Novo usuário premium</p>
-                          <p className="text-xs text-muted-foreground">João Silva se tornou premium - há 5 min</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                          <ShoppingBag className="w-4 h-4 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-foreground">Nova venda na loja</p>
-                          <p className="text-xs text-muted-foreground">
-                            Whey Protein vendido por 500 Fitcoins - há 12 min
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                        <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
-                          <Video className="w-4 h-4 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-foreground">Novo conteúdo Fitz</p>
-                          <p className="text-xs text-muted-foreground">Vídeo de treino publicado - há 1h</p>
-                        </div>
-                      </div>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>
@@ -1900,6 +1964,7 @@ const { error: updateError } = await supabase
                                   video_url: "",
                                   thumbnail_url: "",
                                   material_url: "",
+                                  material_title:""
                                 })
                                 setShowVideoModal(true)
                               }}
@@ -2838,6 +2903,15 @@ const { error: updateError } = await supabase
                     onChange={(e) => setVideoForm((prev) => ({ ...prev, description: e.target.value }))}
                     placeholder="Descrição detalhada do vídeo..."
                     className="mt-1.5 min-h-[80px]"
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Nome</Label>
+                  <Input
+                    value={videoForm.material_title}
+                    onChange={(e) => setVideoForm((prev) => ({ ...prev, material_title: e.target.value }))}
+                    placeholder="Ex: Treino de Peito Intenso"
+                    className="mt-1.5"
                   />
                 </div>
                 <div>
