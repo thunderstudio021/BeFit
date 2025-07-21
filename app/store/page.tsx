@@ -292,8 +292,7 @@ const [digitalProducts, setDigitalProducts] = useState([
                 priority
               />
 
-              {/* Overlay para melhor legibilidade */}
-              <div className="absolute inset-0 bg-gradient-to-r from-orange-500/60 via-orange-500/40 to-purple-500/60" />
+              
 
               {/* Conteúdo do banner */}
               {/* <div className="absolute inset-0 flex flex-col justify-center items-center text-center p-4 sm:p-6 md:p-8">

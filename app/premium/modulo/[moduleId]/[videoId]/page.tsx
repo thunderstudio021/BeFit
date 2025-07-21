@@ -106,6 +106,7 @@ useEffect(() => {
       lessons: videos.map((video, index) => ({
         id: index + 1,
         title: video.title,
+        description: video.description,
         duration: video.duration
           ? formatDuration(video.duration)
           : "00:00",
@@ -123,19 +124,28 @@ useEffect(() => {
       },
     }
 
+    // 🔁 SINCRONIZAR COM LOCALSTORAGE
+    const localLessons = localStorage.getItem(`module_${moduleId}_lessons`)
+    if (localLessons) {
+      const parsedLessons = JSON.parse(localLessons)
+      formattedModule.lessons = formattedModule.lessons.map((lesson) => {
+        const localLesson = parsedLessons.find((l: any) => l.id === lesson.id)
+        return {
+          ...lesson,
+          completed: localLesson?.completed || false,
+        }
+      })
+    }
+
     setDownloadMaterial(videos[parseInt(videoId)].material_url)
-
-
-
-    setModuleData(formattedModule);
+    setModuleData(formattedModule)
     displayVideo(formattedModule.lessons[parseInt(videoId)].videoUrl)
-    console.log('formattedModule',formattedModule);
-    console.log('formattedModule',formattedModule);
     setCurrentLesson(formattedModule.lessons[parseInt(videoId)])
   }
 
   fetchModuleData()
 }, [params.moduleId])
+
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -156,6 +166,19 @@ useEffect(() => {
 
   // Salvar progresso no localStorage
   const saveProgress = async (time: number, progressPercent: number) => {
+
+    if (progressPercent > 90) {
+      const updatedLessons = moduleData.lessons.map((lesson) =>
+        lesson.id === currentLesson.id ? { ...lesson, completed: true } : lesson
+      )
+
+      setModuleData((prev) => ({
+        ...prev,
+        lessons: updatedLessons,
+      }))
+
+      localStorage.setItem(`module_${moduleData.id}_lessons`, JSON.stringify(updatedLessons))
+    }
   
     localStorage.setItem(`module_${moduleData.id}_lesson_${currentLesson.id}_time`, time.toString())
     localStorage.setItem(`module_${moduleData.id}_lesson_${currentLesson.id}_progress`, progressPercent.toString())
@@ -268,12 +291,19 @@ const setVideoDuration = (duration:any) => {const _module = {...moduleData}; _mo
     const currentIndex = moduleData.lessons.findIndex((l) => l.id === currentLesson.id)
     if (currentIndex < moduleData.lessons.length - 1) {
       const nextLesson = moduleData.lessons[currentIndex + 1]
-      setCurrentLesson(nextLesson)
+      const savedProgress = localStorage.getItem(`module_${moduleData.id}_lesson_${nextLesson.id}_progress`)
+      const isCompleted = savedProgress ? Number.parseFloat(savedProgress) > 90 : nextLesson.completed
+
+      setCurrentLesson({
+        ...nextLesson,
+        completed: isCompleted,
+      })
+
+      setProgress(savedProgress ? Number.parseFloat(savedProgress) : 0)
       setShowCountdown(false)
       setVideoEnded(false)
       setIsPlaying(true)
       setCurrentTime(0)
-      setProgress(0)
     }
   }
 
@@ -511,7 +541,7 @@ const setVideoDuration = (duration:any) => {const _module = {...moduleData}; _mo
             <div className={cn("hidden lg:block p-6 border-b", isDark ? "border-gray-800" : "border-gray-200")}>
               <h2 className="text-lg font-bold mb-2">{currentLesson.title}</h2>
               <p className={cn("text-sm mb-4", isDark ? "text-gray-400" : "text-gray-600")}>
-                Clique Abaixo para fazer o Download do seu eBook
+                {currentLesson.description}
               </p>
 
               {/* Download Material */}
@@ -532,7 +562,7 @@ const setVideoDuration = (duration:any) => {const _module = {...moduleData}; _mo
             <div className={cn("lg:hidden p-4 border-b", isDark ? "border-gray-800" : "border-gray-200")}>
               <h2 className="text-lg font-bold mb-2">{currentLesson.title}</h2>
               <p className={cn("text-sm mb-4", isDark ? "text-gray-400" : "text-gray-600")}>
-                Clique Abaixo para fazer o Download do seu eBook
+                {currentLesson.description}
               </p>
 
               {/* Download Material */}

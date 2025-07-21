@@ -157,108 +157,90 @@ function getRandomPhrase() {
   const [dailyGoals, setDailyGoals] = useState<DailyGoal[]>([])
 
   const fetchData = async () => {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      
+  // 1) Meals
+  const { data: mealsData } = await supabase
+    .from("planner_meals")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("date", date)
 
-      // 1) Meals
-      const { data: mealsData } = await supabase
-        .from("planner_meals")
-        .select("*")
-        .eq("user_id", user.id)
+  const mergedMeals = mealsData?.map(m => ({
+    id: m.id,
+    meal: m.meal_name,
+    food: m.food_description,
+    completed: m.check || false
+  })) || []
 
-      const { data: mealsCheck } = await supabase
-        .from("planner_meals_check")
-        .select("*")
-        .in("planner_meals_id", mealsData?.map(m => m.id) || [])
-        .eq("date", date)
+  setMeals(mergedMeals)
 
-      const mergedMeals = mealsData?.map(m => ({
-        id: m.id,
-        meal: m.meal_name,
-        food: m.food_description,
-        completed: mealsCheck?.find(c => c.planner_meals_id === m.id)?.is_completed || false
-      })) || []
+  // 2) Workouts
+  const { data: workoutsData } = await supabase
+    .from("planner_workouts")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("date", date)
 
-      setMeals(mergedMeals)
+  const mergedWorkouts = workoutsData?.map(w => ({
+    id: w.id,
+    name: w.workout_name,
+    type: w.workout_type,
+    time: w.scheduled_time,
+    completed: w.check || false
+  })) || []
 
-      // 2) Workouts
-      const { data: workoutsData } = await supabase
-        .from("planner_workouts")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("date", date)
+  setWorkouts(mergedWorkouts)
 
-      const { data: workoutsCheck } = await supabase
-        .from("planner_workouts_check")
-        .select("*")
-        .in("planner_workouts_id", workoutsData?.map(w => w.id) || [])
-        .eq("date", date)
+  // 3) Shopping
+  const { data: shoppingData } = await supabase
+    .from("planner_shopping")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("date", date)
 
-      const mergedWorkouts = workoutsData?.map(w => ({
-        id: w.id,
-        name: w.workout_name,
-        type: w.workout_type,
-        time: w.scheduled_time,
-        completed: workoutsCheck?.find(c => c.planner_workouts_id === w.id)?.is_completed || false
-      })) || []
+  const mergedShopping = shoppingData?.map(s => ({
+    id: s.id,
+    item: s.item_name,
+    checked: s.check || false
+  })) || []
 
-      setWorkouts(mergedWorkouts)
+  setShoppingList(mergedShopping)
 
-      // 3) Shopping
-      const { data: shoppingData } = await supabase
-        .from("planner_shopping")
-        .select("*")
-        .eq("user_id", user.id)
+  // 4) Daily Goals
+  const { data: goalsData } = await supabase
+    .from("planner_goals")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("date", date)
 
-      const { data: shoppingCheck } = await supabase
-        .from("planner_shopping_check")
-        .select("*")
-        .in("planner_shopping_id", shoppingData?.map(s => s.id) || [])
-        .eq("date", date)
+  const mergedGoals = goalsData?.map(g => ({
+    id: g.id,
+    goal: g.goal_description,
+    checked: g.check || false
+  })) || []
 
-      const mergedShopping = shoppingData?.map(s => ({
-        id: s.id,
-        item: s.item_name,
-        checked: shoppingCheck?.find(c => c.planner_shopping_id === s.id)?.is_checked || false
-      })) || []
+  setDailyGoals(mergedGoals)
 
-      setShoppingList(mergedShopping)
+  // Desafios
+  const challanges = await fetchUserChallenges(user.id)
+  setChallenges(challanges)
 
-      // 4) Daily Goals
-      const { data: goalsData } = await supabase
-        .from("planner_goals")
-        .select("*")
-        .eq("user_id", user.id)
+  // Água consumida
+  const water = await getWaterTotal(user.id, date)
+  setWaterIntake(water)
 
-      const { data: goalsCheck } = await supabase
-        .from("planner_goals_check")
-        .select("*")
-        .in("goals_planner_id", goalsData?.map(g => g.id) || [])
-        .eq("date", date)
+  // Meta de água
+  const { data: profile2 } = await supabase
+    .from("profiles")
+    .select("water")
+    .eq("id", user.id)
 
-      const mergedGoals = goalsData?.map(g => ({
-        id: g.id,
-        goal: g.goal_description,
-        checked: goalsCheck?.find(c => c.goals_planner_id === g.id)?.is_completed || false
-      })) || []
-
-      setDailyGoals(mergedGoals)
-
-      const challanges = await fetchUserChallenges(user.id);
-      setChallenges(challanges);
-
-      const water = await getWaterTotal(user.id, date);
-      setWaterIntake(water)
-
-      const { data: profile2 } = await supabase
-        .from("profiles")
-        .select("water")
-        .eq("id", user.id)
-        console.log('profile2', profile2);
-      setWaterGoal(profile2[0].water * 1000)
-    }
+  if (profile2?.length) {
+    setWaterGoal(profile2[0].water * 1000)
+  }
+}
 
   useEffect(() => {
     fetchData()
@@ -427,11 +409,9 @@ const toggleMeal = async (id: string) => {
   const completed = !meals.find(m => m.id === id)?.completed
   setMeals(prev => prev.map(m => m.id === id ? { ...m, completed } : m))
 
-  await supabase.from("planner_meals_check").upsert({
-    planner_meals_id: id,
-    date: date,
-    is_completed: completed,
-  }, { onConflict: ["planner_meals_id", "date"] })
+  await supabase.from("planner_meals").update({
+    check: completed
+  }).eq("id", id).eq("date", date)
 }
 
 const addMeal = async () => {
@@ -439,7 +419,8 @@ const addMeal = async () => {
     const { data, error } = await supabase.from("planner_meals").insert({
       user_id: user.id,
       meal_name: newItemText,
-      food_description: "Escolha o alimento"
+      food_description: "Escolha o alimento",
+      date: date
     }).select().single()
 
     if (!error && data) {
@@ -476,12 +457,11 @@ const toggleWorkout = async (id: string) => {
   const completed = !workouts.find(w => w.id === id)?.completed
   setWorkouts(prev => prev.map(w => w.id === id ? { ...w, completed } : w))
 
-  await supabase.from("planner_workouts_check").upsert({
-    planner_workouts_id: id,
-    date: date,
-    is_completed: completed
-  }, { onConflict: ["planner_workouts_id", "date"] })
+  await supabase.from("planner_workouts").update({
+    check: completed
+  }).eq("id", id).eq("date", date)
 }
+
 
 const addWorkout = async () => {
   if (newItemText.trim()) {
@@ -499,7 +479,8 @@ const addWorkout = async () => {
         name: data.workout_name,
         type: data.workout_type,
         time: data.scheduled_time,
-        completed: false
+        completed: false,
+        date: date
       }])
       setNewItemText("")
     }
@@ -537,25 +518,26 @@ const toggleShoppingItem = async (id: string) => {
   const checked = !shoppingList.find(i => i.id === id)?.checked
   setShoppingList(prev => prev.map(i => i.id === id ? { ...i, checked } : i))
 
-  await supabase.from("planner_shopping_check").upsert({
-    planner_shopping_id: id,
-    date: date,
-    is_checked: checked,
-  }, { onConflict: ["planner_shopping_id", "date"] })
+  await supabase.from("planner_shopping").update({
+    check: checked
+  }).eq("id", id).eq("date", date)
 }
+
 
 const addShoppingItem = async () => {
   if (newItemText.trim()) {
     const { data, error } = await supabase.from("planner_shopping").insert({
       user_id: user.id,
       item_name: newItemText,
+      date:date
     }).select().single()
 
     if (!error && data) {
       setShoppingList(prev => [...prev, {
         id: data.id,
         item: data.item_name,
-        checked: false
+        checked: false,
+        date: date
       }])
       setNewItemText("")
     }
@@ -584,12 +566,11 @@ const toggleDailyGoal = async (id: string) => {
   const checked = !dailyGoals.find(g => g.id === id)?.checked
   setDailyGoals(prev => prev.map(g => g.id === id ? { ...g, checked } : g))
 
-  await supabase.from("planner_goals_check").upsert({
-    goals_planner_id: id,
-    date: date,
-    is_completed: checked,
-  }, { onConflict: ["goals_planner_id", "date"] })
+  await supabase.from("planner_goals").update({
+    check: checked
+  }).eq("id", id).eq("date", date)
 }
+
 
 const addDailyGoal = async () => {
   if (newItemText.trim()) {
@@ -602,6 +583,7 @@ const addDailyGoal = async () => {
       setDailyGoals(prev => [...prev, {
         id: data.id,
         goal: data.goal_description,
+        date:date,
         checked: false
       }])
       setNewItemText("")

@@ -47,69 +47,60 @@ export default function FitzPage() {
   const [originalFitzCount, setOriginalFitzCount] = useState(0) // Novo estado para guardar o número de itens originais
   const wasLongPress = useRef(false);
   const pressTimer = useRef<any>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+const lastLoadedIndex = useRef(-1)
+
+
+  const [loadedIds, setLoadedIds] = useState<Set<number>>(new Set());
+const fetchRandomFitz = async (limit = 3) => {
+  const { data, error } = await supabase
+    .rpc('get_random_fitz', { limit_param: limit })
+    .eq('isVisible', true);
+
+  if (error) {
+    console.error("Erro ao carregar vídeos aleatórios:", error);
+    return [];
+  }
+
+  const { data: likedData } = await supabase
+    .from('fitz_likes')
+    .select('post_id, user_id, like')
+    .eq('user_id', user?.id);
+
+  const mapped = data.map((item: any) => ({
+    id: item.id,
+    user: item.author || 'unknown',
+    avatar: '/placeholder.svg?height=40&width=40',
+    verified: true,
+    description: item.caption,
+    media: item.file,
+    likes: item.likes_count,
+    comments: item.comments_count,
+    shares: 0,
+    liked: likedData?.some((like: any) => like.post_id === item.id && like.like),
+    already_like: likedData?.some((like: any) => like.post_id === item.id),
+    isVideo: item.type === "video",
+    externalLink: item.link,
+    linkText: 'Saiba mais',
+  }));
+
+  return mapped;
+};
+
+
+
 
 
   // Dados básicos dos vídeos
   useEffect(() => {
-    const fetchFitz = async () => {
-      const { data, error } = await supabase
-        .from('fitz')
-        .select(
-          `
-            id,
-            created_at,
-            author,
-            caption,
-            file,
-            link,
-            type,
-            likes_count,
-            comments_count,
-            isVisible
-          `
-        )
-        .eq('isVisible', true)
-        .order('created_at', { ascending: false })
+    if (!user) return;
+    const loadInitial = async () => {
+      const initialFitz = await fetchRandomFitz(4);
+      setFitz(initialFitz);
+    };
+    loadInitial();
+  }, [user]);
 
-      if (error) {
-        console.error('Erro ao carregar Fitz:', error)
-        return
-      }
-
-      // Agora, busque likes desse user para os posts carregados
-      const { data: likedData, error: likedError } = await supabase
-            .from('fitz_likes')
-            .select('post_id, user_id, like')
-            .eq('user_id', user?.id)
-
-      if (data) {
-        const mapped: FitzItem[] = data.map((item) => ({
-          id: item.id,
-          user: item.author || 'unknown',
-          avatar: '/placeholder.svg?height=40&width=40',
-          verified: true,
-          description: item.caption,
-          media: item.file,
-          likes: item.likes_count,
-          comments: item.comments_count,
-          shares: 0,
-          liked: likedData?.some((like: any) => like.post_id === item.id && like.user_id === user?.id && like.like),
-          already_like: likedData?.some((like: any) => like.post_id === item.id && like.user_id === user?.id),
-          isVideo: item.type == "video",
-          externalLink: item.link,
-          linkText: 'Saiba mais',
-        }))
-
-        // Duplica os itens para criar o efeito de loop infinito
-        setOriginalFitzCount(mapped.length);
-        setFitz([...mapped, ...mapped]); // Duplica os itens
-
-        
-      }
-    }
-
-    fetchFitz()
-  }, [user])
 
   // Comentários iniciais (mantido como estava)
   useEffect(() => {
@@ -135,7 +126,16 @@ export default function FitzPage() {
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
 
-
+  const loadMoreFitz = async (total:number) => {
+      if (isLoadingMore) return
+      setIsLoadingMore(true)
+      const initialFitz = await fetchRandomFitz(total);
+      const _new_fitz = [...fitz, ...initialFitz];
+      setFitz(_new_fitz);
+      console.log('_new_fitz', _new_fitz)
+      setOriginalFitzCount(_new_fitz.length)
+      setIsLoadingMore(false)
+    };
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) {
@@ -211,6 +211,9 @@ export default function FitzPage() {
             }
             setCurrentIndex(0); // Reinicia o índice para o primeiro item
           }
+          
+
+          
 
 
           if (video && fitz[index]?.isVideo) {
@@ -235,6 +238,13 @@ export default function FitzPage() {
         } else if (video) {
           video.pause()
         }
+
+        console.log(index, fitz.length);
+
+        if (currentIndex >= fitz.length - 2 && currentIndex > lastLoadedIndex.current) {
+          lastLoadedIndex.current = index
+          loadMoreFitz(3)
+        }
       })
     }, options)
 
@@ -248,7 +258,7 @@ export default function FitzPage() {
       observer.disconnect()
       cleanup()
     }
-  }, [muted, startProgressTimer, cleanup, fitz, originalFitzCount]) // Adicione originalFitzCount às dependências
+  }, [muted, startProgressTimer, cleanup, fitz, originalFitzCount, lastLoadedIndex, currentIndex]) // Adicione originalFitzCount às dependências
 
   // Manipular referência de vídeo
   const setVideoRef = useCallback(
@@ -443,6 +453,7 @@ export default function FitzPage() {
       {isMobile && (
       <div className="md:hidden h-screen w-screen bg-black overflow-hidden">
         <div ref={containerRef} 
+                  onContextMenu={(e) => e.preventDefault()}
                     onMouseDown={() => handleMediaPress(currentIndex)}
                     onMouseUp={() => handleMediaRelease(currentIndex)}
                     onTouchStart={() => handleMediaPress(currentIndex)}
@@ -459,6 +470,7 @@ export default function FitzPage() {
               <div className="absolute inset-0 bg-black flex items-center justify-center">
                 {item.isVideo ? (
                   <video
+                    onContextMenu={(e) => e.preventDefault()}
                     ref={setVideoRef(index)}
                     src={item.media}
                     className="w-full h-full object-cover"

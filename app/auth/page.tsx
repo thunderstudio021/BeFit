@@ -43,6 +43,11 @@ export default function AuthPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+
+    if(registerData.whatsapp.length < 10){
+      setError("Telefone invalido!")
+      return "";
+    }
     const { data, error: signUpError } = await supabase.auth.signUp({
       email: registerData.email,
       password: registerData.password
@@ -88,7 +93,7 @@ export default function AuthPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">BBFitness</h1>
+          <img src={"https://supabase.befitbrasil.app/storage/v1/object/public/befit//BEFIT---LOGO-BRANCA.png"} />
           <p className="text-gray-300">Sua jornada fitness começa aqui</p>
         </div>
 
@@ -153,7 +158,7 @@ export default function AuthPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="whatsapp" className="text-gray-300">WhatsApp</Label>
-                    <Input id="whatsapp" required value={registerData.whatsapp} onChange={(e) => handlePhoneChange(e)} className="bg-gray-700 text-white" />
+                    <Input id="whatsapp" required minLength={10} value={registerData.whatsapp} onChange={(e) => handlePhoneChange(e)} className="bg-gray-700 text-white" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password" className="text-gray-300">Senha</Label>

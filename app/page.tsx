@@ -116,6 +116,142 @@ export default function HomePage() {
   // Posts da comunidade (usuários normais) + posts do usuário
   const [communityPosts, setCommunityPosts] = useState([])
   const [profile, setProfile] = useState<any>(null)
+  const [pageForYou, setPageForYou] = useState(0)
+const [pageCommunity, setPageCommunity] = useState(0)
+const limit = 2
+
+const [hasMoreForYou, setHasMoreForYou] = useState(true)
+const [hasMoreCommunity, setHasMoreCommunity] = useState(true)
+const [loadingMore, setLoadingMore] = useState(false)
+
+const [activeTab, setActiveTab] = useState<"forYou" | "community">("forYou")
+
+const fetchPaginatedPosts = async (offset: number, limit: number): Promise<Post[]> => {
+  const { data: postsData, error: postsError } = await supabase
+    .from("posts")
+    .select(`
+      *,
+      profiles (
+        avatar_url,
+        full_name,
+        username,
+        user_type,
+        is_verified
+      ),
+      likes (
+        user_id,
+        like
+      ),
+      post_reposts (
+        user_id
+      )
+    `)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  const { data: repostsData, error: repostsError } = await supabase
+    .from("post_reposts")
+    .select(`
+      *,
+      user:profiles (
+        full_name,
+        user_type
+      ),
+      posts (
+        *,
+        profiles (
+          avatar_url,
+          full_name,
+          username,
+          user_type,
+          is_verified
+        ),
+        likes (
+          user_id,
+          like
+        ),
+        post_reposts (
+          user_id
+        )
+      )
+    `)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (postsError || repostsError) {
+    console.error("Erro ao carregar posts:", postsError || repostsError)
+    return []
+  }
+
+  const repostsAsPosts = repostsData.map((r: any) => ({
+    ...r.posts,
+    isRepost: true,
+    repostedBy: r.user.full_name,
+    original_created_at: r.created_at,
+  }))
+
+  const allRawPosts = [...postsData, ...repostsAsPosts]
+
+  const posts = allRawPosts.map((post: any) => {
+    const userLiked = post.likes?.some((like: any) => like.user_id === user?.id && like.like)
+    const userReposted = post.post_reposts?.some((repost: any) => repost.user_id === user?.id)
+    const userAlreadyLiked = post.likes?.some((like: any) => like.user_id === user?.id)
+
+    return {
+      ...post,
+      user_liked: userLiked,
+      user_reposted: userReposted,
+      already_like: userAlreadyLiked,
+    }
+  })
+
+  return posts.map((v: any) => mapSupabaseToPost(v)) || []
+}
+
+useEffect(() => {
+  const handleScroll = () => {
+    console.log('handleScroll')
+    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 100) {
+      console.log('handleScroll', activeTab)
+      if (activeTab === "forYou" && !loadingMore) loadMorePosts("forYou")
+      if (activeTab === "community" && !loadingMore) loadMorePosts("community")
+    }
+  }
+
+  window.addEventListener("scroll", handleScroll)
+  return () => window.removeEventListener("scroll", handleScroll)
+}, [activeTab, hasMoreForYou, loadingMore])
+
+
+const loadMorePosts = async (tab: "forYou" | "community") => {
+  console.log('loadMorePosts');
+  if (loadingMore) return
+
+  setLoadingMore(true)
+  const offset = (tab === "forYou" ? pageForYou : pageCommunity) * limit
+
+  const posts = await fetchPaginatedPosts(offset, limit)
+  const adsFromDb = await loadAds()
+
+  const sortedPosts = posts.sort((a, b) => b.createdAt! - a.createdAt!)
+
+  if (tab === "forYou") {
+    const filtered = sortedPosts.filter(
+      (p) => p?.profiles?.user_type === "producer" || p?.profiles?.user_type === "admin" || p?.profiles?.is_verified
+    )
+    const intercalated = getIntercalatedPosts(filtered, adsFromDb)
+    setForYou((prev) => [...prev, ...intercalated])
+    setPageForYou((prev) => prev + 1)
+  } else {
+    const intercalated = getIntercalatedPosts(sortedPosts, adsFromDb)
+    setCommunityPosts((prev) => [...prev, ...intercalated])
+    setPageCommunity((prev) => prev + 1)
+  }
+
+  setLoadingMore(false)
+}
+
+
   
     useEffect(() => {
       if (!user) return
@@ -127,38 +263,120 @@ export default function HomePage() {
 
 
     const loadAds = async (): Promise<Post[]> => {
-  const { data, error } = await supabase
-    .from('ads')
-    .select('*')
-    .eq('status', 'active')  // Filtra apenas anúncios ativos, se desejar
+  const userId = user?.id
 
-  if (error) {
-    console.error('Erro ao carregar anúncios:', error)
+  // Buscar anúncios originais
+  const { data: adsData, error: adsError } = await supabase
+    .from('ads')
+    .select(`
+      *,
+      likes_ads (
+        user_id,
+        liked
+      ),
+      comments_ads (
+        id
+      ),
+      ads_reposts (
+        user_id
+      )
+    `)
+    .eq('status', 'active')
+
+  // Buscar reposts de anúncios
+  const { data: repostsData, error: repostsError } = await supabase
+    .from('ads_reposts')
+    .select(`
+      *,
+      user:profiles (
+        full_name
+      ),
+      ad:ads (
+        *,
+        likes_ads (
+          user_id,
+          liked
+        ),
+        comments_ads (
+          id
+        )
+      )
+    `)
+
+  if (adsError || repostsError) {
+    console.error('Erro ao carregar anúncios ou reposts:', adsError || repostsError)
     return []
   }
 
-  return data.map(ad => ({
-    id: ad.id.toString(),
-    type: 'ad',
-    user: ad.name || 'Anunciante',
-    avatar: '/placeholder.svg',  // Você pode criar um campo de avatar se quiser
-    content: ad.caption || '',
-    image: ad.image || '',
-    likes: 0,
-    comments: 0,
-    shares: 0,
-    adType: ad.category,
-    externalLink: ad.buttonLink,
-    isVerified: true,  // Se quiser destacar anúncios como verificados
-    user_liked: false,
-    already_like: false,
-    user_reposted: false,
-    location: ad.placement || 'foryou', // Defina onde o anúncio aparece
-    username: '',
-    repostedBy: '',
-    isRepost: false
-  }))
+  // Reposts transformados em "ads"
+  const repostsAsAds = (repostsData || []).map((r: any) => {
+    const ad = r.ad
+    const likes = ad.likes_ads || []
+    const comments = ad.comments_ads || []
+
+    const userLiked = likes.some((like: any) => like.user_id === userId && like.liked)
+    const userAlreadyLiked = likes.some((like: any) => like.user_id === userId)
+
+    return {
+      id: ad.id.toString(),
+      type: 'ad',
+      user: ad.name || 'Anunciante',
+      avatar: '/placeholder.svg',
+      content: ad.caption || '',
+      image: ad.image || '',
+      likes: likes.length,
+      comments: comments.length,
+      shares: ad.shares || 0,
+      adType: ad.category,
+      externalLink: ad.buttonLink,
+      isVerified: true,
+      user_liked: userLiked,
+      already_like: userAlreadyLiked,
+      user_reposted: true,
+      location: ad.placement || 'foryou',
+      username: '',
+      repostedBy: r.user?.full_name || '',
+      isRepost: true,
+      isAds: true
+    }
+  })
+
+  // Anúncios originais
+  const originalAds = (adsData || []).map((ad: any) => {
+    const likes = ad.likes_ads || []
+    const comments = ad.comments_ads || []
+
+    const userLiked = likes.some((like: any) => like.user_id === userId && like.liked)
+    const userAlreadyLiked = likes.some((like: any) => like.user_id === userId)
+    const userReposted = ad.ads_reposts?.some((repost: any) => repost.user_id === userId)
+
+    return {
+      id: ad.id.toString(),
+      type: 'ad',
+      user: ad.name || 'Anunciante',
+      avatar: '/placeholder.svg',
+      content: ad.caption || '',
+      image: ad.image || '',
+      likes: likes.length,
+      comments: comments.length,
+      shares: ad.shares || 0,
+      adType: ad.category,
+      externalLink: ad.buttonLink,
+      isVerified: true,
+      user_liked: userLiked,
+      already_like: userAlreadyLiked,
+      user_reposted: userReposted,
+      location: ad.placement || 'foryou',
+      username: '',
+      repostedBy: '',
+      isRepost: false
+    }
+  })
+
+  // Junta tudo sem ordenar
+  return [...originalAds, ...repostsAsAds]
 }
+
 
 
   // Detectar se é mobile
@@ -397,27 +615,23 @@ const [featuredItems, setFeaturedItems] = useState<FeaturedItem[]>([])
 
 
   // Carregar posts do usuário
-  useEffect(() => {
-    
+useEffect(() => {
+  if (user) {
+    setForYou([])
+    setCommunityPosts([])
+    setPageForYou(0)
+    setPageCommunity(0)
+    setHasMoreForYou(true)
+    setHasMoreCommunity(true)
+    loadMorePosts("forYou")
+    loadMorePosts("community")
+  }
+}, [user])
 
-    loadUserPosts()
-    loadFeaturedItems().then(setFeaturedItems)
-
-    // Listener para reposts
-    const handleRepostCreated = (event:any) => {
-      loadUserPosts() // Recarregar posts quando um repost for criado
-    }
-
-    window.addEventListener("repostCreated", handleRepostCreated)
-
-    return () => {
-      window.removeEventListener("repostCreated", handleRepostCreated)
-    }
-  }, [user])
 
   // Função para recarregar posts quando um novo é criado
   const handlePostCreated = () => {
-    loadUserPosts();
+    // loadUserPosts();
   }
 
 
@@ -437,7 +651,7 @@ const [featuredItems, setFeaturedItems] = useState<FeaturedItem[]>([])
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Feed principal */}
           <div className="flex-1 w-full max-w-2xl mx-auto px-2 sm:px-0">
-            <Tabs defaultValue="for-you" className="w-full">
+            <Tabs onValueChange={(value) => setActiveTab(value === "for-you" ? "forYou" : "community")} defaultValue="for-you" className="w-full">
               <div className="sticky top-[73px] z-40 bg-background/80 backdrop-blur-md px-2">
                 <TabsList className="w-full grid grid-cols-2 bg-transparent h-10 p-0 rounded-none mb-4 gap-2">
                   <TabsTrigger
@@ -475,6 +689,7 @@ const [featuredItems, setFeaturedItems] = useState<FeaturedItem[]>([])
                       user={post.user}
                       avatar={post.avatar}
                       content={post.content}
+                      isAds={post.isAds || false}
                       image={post.image}
                       videoThumbnail={post.videoThumbnail}
                       backgroundColor={post.backgroundColor}
@@ -544,6 +759,7 @@ const [featuredItems, setFeaturedItems] = useState<FeaturedItem[]>([])
                       username={post.username}
                       isRepost={post.isRepost}
                       repostedBy={post.repostedBy}
+                      isAds={post.isAds || false}
                       videoUrl={post.video_url}
                     />
                     {index < communityPosts.length - 1 && <Separator className="my-2 opacity-50" />}

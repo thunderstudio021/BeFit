@@ -373,7 +373,7 @@ const combinedPosts = posts
                         Pro
                       </Badge>
                     ) : (
-                      <Badge variant="outline">Free</Badge>
+                      <></>
                     )}
                   </div>
                 </div>

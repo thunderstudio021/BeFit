@@ -58,6 +58,7 @@ interface FeedPostProps {
   _reposted:any
   username:any
   videoUrl:any
+  isAds: boolean
   onPostCreated?: () => void // Adicionar esta linha
 }
 
@@ -91,6 +92,7 @@ export default function FeedPost({
   _reposted,
   alreadyLiked,
   username,
+  isAds,
   onPostCreated, // Adicionar esta linha
 }: FeedPostProps) {
   const router = useRouter()
@@ -247,10 +249,14 @@ export default function FeedPost({
 
   const handleLike = async () => {
   if (!User?.id || !postId) return;
+  var table = "likes"
+  if(isAds){
+    table = "likes_ads"
+  }
 
   // Verifica se já existe like do usuário nesse post
   const { data: existingLike, error: likeError } = await supabase
-    .from("likes")
+    .from(table)
     .select("id, like")
     .eq("user_id", User.id)
     .eq("post_id", postId)
@@ -271,7 +277,7 @@ export default function FeedPost({
   if (existingLike) {
     // Se já existe, apenas atualiza
     const { error: updateError } = await supabase
-      .from("likes")
+      .from(table)
       .update({ like: newLiked })
       .eq("id", existingLike.id);
 
@@ -279,7 +285,7 @@ export default function FeedPost({
   } else {
     // Se ainda não curtiu, cria novo like
     const { error: insertError } = await supabase
-      .from("likes")
+      .from(table)
       .insert({ user_id: User.id, post_id: postId, like: true });
 
     if (insertError) {
@@ -291,7 +297,7 @@ export default function FeedPost({
 
   // Atualiza contador de likes no post
   const { error: postUpdateError } = await supabase
-    .from("posts")
+    .from(isAds ? "ads" : "post")
     .update({ likes_count: newCount })
     .eq("id", postId);
 
@@ -818,6 +824,7 @@ const handlePollVote = async (index: number) => {
 
       {/* Modal de comentários */}
       <CommentsModal
+        isAds={isAds || false}
         isFitz={false}
         isOpen={showComments}
         onClose={() => setShowComments(false)}

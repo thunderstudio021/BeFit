@@ -22,6 +22,7 @@ interface CommentsModalProps {
   onCommentAdded?: () => void,
   user:any,
   isFitz:boolean
+  isAds: boolean
 }
 
 export default function CommentsModal({
@@ -31,7 +32,8 @@ export default function CommentsModal({
   initialComments = [],
   onCommentAdded,
   user,
-  isFitz
+  isFitz,
+  isAds
 }: CommentsModalProps) {
   const [commentText, setCommentText] = useState("")
   const [comments, setComments] = useState<Comment[]>(initialComments)
@@ -43,6 +45,9 @@ export default function CommentsModal({
     var table = "comments"
     if(isFitz){
       table = `comments_fitz`
+    }
+    if(isAds){
+      table = `comments_ads`
     }
 
     const {data,error}=await supabase.from(table).select(`*, profiles(avatar_url, username)`).eq(`post_id`, postId);
@@ -105,6 +110,9 @@ export default function CommentsModal({
       var table = "comments"
       if(isFitz){
         table = `comments_fitz`
+      }
+      if(isFitz){
+        table = `comments_ads`
       }
 
       await supabase.from(table).insert({user_id:user.id, post_id: postId, content: commentText});
