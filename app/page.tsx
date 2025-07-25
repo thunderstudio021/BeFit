@@ -643,6 +643,8 @@ useEffect(() => {
   return (
     <AppLayout>
       {/* Notificação de Fitcoin */}
+      
+      <PushManager />
       <FitcoinNotification />
 
       {/* Container principal centralizado */}
