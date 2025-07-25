@@ -12,6 +12,7 @@ import { getUserProfile } from "@/lib/services/profileService"
 import { useFitcoin } from "@/hooks/use-fitcoin"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { supabase } from "@/lib/supabase"
+import PushSubscriptionButton from "./push-manager"
 
 export default function StandardHeader() {
   const { isDark, toggleTheme } = useTheme()
@@ -53,6 +54,8 @@ export default function StandardHeader() {
       </div>
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-0">
+          
+        <PushSubscriptionButton />
           <FitcoinCounter />
           <Button
             size="icon"

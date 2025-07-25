@@ -16,6 +16,7 @@ import { useUser } from '@supabase/auth-helpers-react'
 import { supabase } from "@/lib/supabase"
 import { getUserProfile } from "@/lib/services/profileService"
 import { StatementResultingChanges } from "node:sqlite"
+import PushSubscriptionManager from "@/components/push-manager"
 
 // Tipos para os posts
 interface Post {
@@ -644,7 +645,7 @@ useEffect(() => {
     <AppLayout>
       {/* Notificação de Fitcoin */}
       
-      <PushManager />
+    
       <FitcoinNotification />
 
       {/* Container principal centralizado */}
