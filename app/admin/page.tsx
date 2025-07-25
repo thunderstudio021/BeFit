@@ -288,37 +288,51 @@ const [adminSummary, setAdminSummary] = useState<AdminSummary>({
 
   const handleFileUpload = async (
   file: File,
-  setData: (param: any) => void
+  setData: (param: any) => void,
+  setDuration?: (duration: number) => void
 ) => {
   try {
-    const fileExt = file.name.split(".").pop()
-    const filePath = `uploads/${Date.now()}-${file.name}`
+    // Primeiro, lemos a duração do vídeo
+    const videoEl = document.createElement("video");
+    videoEl.preload = "metadata";
 
-    const { error: uploadError } = await supabase.storage
-      .from("befit") // Bucket definido
-      .upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: false,
-      })
+    videoEl.onloadedmetadata = async () => {
+      window.URL.revokeObjectURL(videoEl.src);
+      const duration = videoEl.duration;
+      if (setDuration) setDuration(duration); // ⏱️ salva a duração
 
-    if (uploadError) {
-      console.error("Erro ao fazer upload para Supabase:", uploadError)
-      return
-    }
+      // Continua com o upload
+      const fileExt = file.name.split(".").pop();
+      const filePath = `uploads/${Date.now()}-${file.name}`;
 
-    const { data: urlData } = supabase.storage
-      .from("befit")
-      .getPublicUrl(filePath)
+      const { error: uploadError } = await supabase.storage
+        .from("befit")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
 
-    const publicUrl = urlData?.publicUrl
-    if (publicUrl) {
-      setData(publicUrl)
-      console.log("Arquivo enviado para Supabase:", publicUrl)
-    }
+      if (uploadError) {
+        console.error("Erro ao fazer upload para Supabase:", uploadError);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from("befit")
+        .getPublicUrl(filePath);
+
+      const publicUrl = urlData?.publicUrl;
+      if (publicUrl) {
+        setData(publicUrl);
+        console.log("Arquivo enviado para Supabase:", publicUrl);
+      }
+    };
+
+    videoEl.src = URL.createObjectURL(file);
   } catch (err) {
-    console.error("Erro ao enviar arquivo:", err)
+    console.error("Erro ao enviar arquivo:", err);
   }
-}
+};
 
 
 
@@ -329,6 +343,7 @@ const [adminSummary, setAdminSummary] = useState<AdminSummary>({
   accept,
   title,
   description,
+  setDuration,
   color = "purple",
   multiple = false,
 }) => {
@@ -354,7 +369,7 @@ const [adminSummary, setAdminSummary] = useState<AdminSummary>({
 
       setUploadingFiles((prev) => ({ ...prev, [uploadKey]: true }))
 
-      await handleFileUpload(file, setData)
+      await handleFileUpload(file, setData, setDuration)
 
       setUploadingFiles((prev) => ({ ...prev, [uploadKey]: false }))
       setUploadedFiles((prev) => ({ ...prev, [uploadKey]: true }))
@@ -521,6 +536,7 @@ useEffect(() => {
   const [videoForm, setVideoForm] = useState({
     title: "",
     description: "",
+    duration: "",
     video_url: "",
     thumbnail_url: "",
     material_url: "",
@@ -1008,7 +1024,7 @@ const { error: updateError } = await supabase
   }
 
   const handleAddVideo = async () => {
-    if (!videoForm.title.trim() || selectedModuleId === null) return
+    if (!videoForm.title.trim() || (selectedModuleId === null && !videoForm.id)) return
     if(videoForm.id){
       const { error: updateError } = await supabase
         .from("premium_videos")
@@ -1031,6 +1047,7 @@ const { error: updateError } = await supabase
     setVideoForm({
       title: "",
       description: "",
+      duration: "",
       video_url: "",
       thumbnail_url: "",
       material_url: "",
@@ -1752,6 +1769,7 @@ const { error: updateError } = await supabase
                   </div>
 
                   <FileUploadArea
+                    setDuration={() => {}}
                     uploadKey="premium-banner-store"
                     setData={(banner:string) => setStoreBannerData({...storeBannerData, image_url: banner})}
                     accept="image/*"
@@ -1912,6 +1930,7 @@ const { error: updateError } = await supabase
                   </div>
 
                   <FileUploadArea
+                    setDuration={() => {}}
                     uploadKey="premium-banner-main"
                     setData={(base64:any) => setBannerData((prev) => ({ ...prev, image_url: base64 }))}
                     accept="image/*"
@@ -1962,6 +1981,7 @@ const { error: updateError } = await supabase
                                   title: "",
                                   description: "",
                                   video_url: "",
+                                  duration: "",
                                   thumbnail_url: "",
                                   material_url: "",
                                   material_title:""
@@ -2918,6 +2938,7 @@ const { error: updateError } = await supabase
                   <Label className="text-sm font-medium">Upload Material de Apoio</Label>
                   <div className="mt-1.5">
                     <FileUploadArea
+                      setDuration={() => {}}
                       setData={(base64:any) => setVideoForm((prev) => ({ ...prev, material_url: base64 }))}
                       uploadKey={`video-material-${selectedModuleId}-${editingVideo || "new"}`}
                       accept=".pdf,.doc,.docx,.zip,.txt"
@@ -2932,6 +2953,7 @@ const { error: updateError } = await supabase
                   <Label className="text-sm font-medium">Upload Foto de Capa/Thumb</Label>
                   <div className="mt-1.5">
                     <FileUploadArea
+                    setDuration={() => {}}
                     setData={(base64:any) => setVideoForm((prev) => ({ ...prev, thumbnail_url: base64 }))}
                       uploadKey={`video-thumb-${selectedModuleId}-${editingVideo || "new"}`}
                       accept="image/*"
@@ -2946,6 +2968,7 @@ const { error: updateError } = await supabase
                   <Label className="text-sm font-medium">Upload do Vídeo Principal</Label>
                   <div className="mt-1.5">
                     <FileUploadArea
+                    setDuration={(duration:any) => setVideoForm((prev) => ({ ...prev, duration: duration }))}
                     setData={(base64:any) => setVideoForm((prev) => ({ ...prev, video_url: base64 }))}
                       uploadKey={`video-main-${selectedModuleId}-${editingVideo || "new"}`}
                       accept="video/*"

@@ -31,7 +31,7 @@ interface FitzItem {
 export default function FitzPage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [likedItems, setLikedItems] = useState<Set<number>>(new Set())
-  const [muted, setMuted] = useState(true)
+  const [muted, setMuted] = useState(false)
   const [progress, setProgress] = useState(0)
   const [showComments, setShowComments] = useState(false)
   const [comments, setComments] = useState<{ [key: number]: { user: string; text: string; time: string }[] }>({})
@@ -201,15 +201,9 @@ const fetchRandomFitz = async (limit = 3) => {
           setCurrentIndex(index)
 
           // Lógica para o loop infinito
-          if (originalFitzCount > 0 && index >= originalFitzCount * (fitz.length / originalFitzCount) - 1) { // Verifica se é o último item da DUPLICAÇÃO
-            // Scroll suave para o início para simular o loop
-            if (containerRef.current) {
-                containerRef.current.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
-            }
-            setCurrentIndex(0); // Reinicia o índice para o primeiro item
+          if (currentIndex >= fitz.length - 2 && currentIndex > lastLoadedIndex.current) {
+            lastLoadedIndex.current = index
+            loadMoreFitz(3)
           }
           
 
@@ -241,10 +235,7 @@ const fetchRandomFitz = async (limit = 3) => {
 
         console.log(index, fitz.length);
 
-        if (currentIndex >= fitz.length - 2 && currentIndex > lastLoadedIndex.current) {
-          lastLoadedIndex.current = index
-          loadMoreFitz(3)
-        }
+        
       })
     }, options)
 
@@ -479,7 +470,7 @@ const fetchRandomFitz = async (limit = 3) => {
                     playsInline
                     preload="metadata"
                     poster="/placeholder.svg?height=1920&width=1080"
-                    
+                    autoPlay 
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
@@ -632,6 +623,7 @@ const fetchRandomFitz = async (limit = 3) => {
                   >
                     {item.isVideo ? (
                       <video
+                        autoPlay 
                         ref={setVideoRef(index)}
                         src={item.media}
                         className="w-full h-full object-cover"
