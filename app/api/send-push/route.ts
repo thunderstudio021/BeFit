@@ -1,6 +1,6 @@
-import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 import webpush from "web-push";
+import { NextResponse } from "next/server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,9 +13,9 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY!
 );
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export async function POST(req: Request) {
   const { data: subs, error } = await supabase.from("push_subscriptions").select("*");
-  if (error) return res.status(500).json({ error });
+  if (error) return NextResponse.json({ error }, { status: 500 });
 
   const payload = JSON.stringify({
     title: "Nova Mensagem",
@@ -39,5 +39,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  res.status(200).json({ enviado: subs.length });
+  return NextResponse.json({ enviado: subs.length });
 }
