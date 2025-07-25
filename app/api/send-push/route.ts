@@ -1,3 +1,5 @@
+"use server";
+
 import { createClient } from "@supabase/supabase-js";
 import webpush from "web-push";
 import { NextResponse } from "next/server";
