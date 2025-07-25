@@ -5,7 +5,11 @@ import { supabase } from "@/lib/supabase";
 
 export default function PushManager() {
   useEffect(() => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (
+        typeof window === "undefined" || // no SSR
+        !("serviceWorker" in navigator) || 
+        !("PushManager" in window)
+    ) return;
 
     const registerPush = async () => {
       const permission = await Notification.requestPermission();
