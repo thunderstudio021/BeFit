@@ -881,7 +881,6 @@ useEffect(() => {
           </div>
         </div>
       </div>
-    <PushManager />
     </AppLayout>
   )
 }
