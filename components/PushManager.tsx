@@ -6,20 +6,19 @@ import { supabase } from "@/lib/supabase";
 export default function PushManager() {
   useEffect(() => {
     if (
-        typeof window === "undefined" || // no SSR
-        !("serviceWorker" in navigator) || 
-        !("PushManager" in window)
-    ) return;
+      typeof window === "undefined" ||
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window)
+    )
+      return;
 
     const registerPush = async () => {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") return;
 
-      // Aguarda o service worker estar ativo
       const registration = await navigator.serviceWorker.register("/sw.js");
       await navigator.serviceWorker.ready;
 
-      // Evita múltiplas inscrições
       let subscription = await registration.pushManager.getSubscription();
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
@@ -35,13 +34,22 @@ export default function PushManager() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      const sub: any = subscription.toJSON();
+      const endpoint = subscription.endpoint;
+      const p256dh = subscription.getKey("p256dh");
+      const auth = subscription.getKey("auth");
+
+      const keys_p256dh = p256dh
+        ? btoa(String.fromCharCode(...new Uint8Array(p256dh)))
+        : null;
+      const keys_auth = auth
+        ? btoa(String.fromCharCode(...new Uint8Array(auth)))
+        : null;
 
       await supabase.from("push_subscriptions").upsert({
         user_id: user.id,
-        endpoint: sub.endpoint,
-        keys_p256dh: sub.keys.p256dh,
-        keys_auth: sub.keys.auth,
+        endpoint,
+        keys_p256dh,
+        keys_auth,
       });
     };
 
