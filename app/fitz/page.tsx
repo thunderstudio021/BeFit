@@ -68,21 +68,21 @@ const fetchRandomFitz = async (limit = 3) => {
     .eq('user_id', user?.id);
 
   const mapped = data.map((item: any) => ({
-    id: item.id,
-    user: item.author || 'unknown',
-    avatar: '/placeholder.svg?height=40&width=40',
-    verified: true,
-    description: item.caption,
-    media: item.file,
-    likes: item.likes_count,
-    comments: item.comments_count,
-    shares: 0,
-    liked: likedData?.some((like: any) => like.post_id === item.id && like.like),
-    already_like: likedData?.some((like: any) => like.post_id === item.id),
-    isVideo: item.type === "video",
-    externalLink: item.link,
-    linkText: 'Saiba mais',
-  }));
+  id: item.id,
+  user: item.author || 'unknown',
+  avatar: item.avatar_url || '/placeholder.svg?height=40&width=40',
+  verified: item.is_verified || false,
+  description: item.caption,
+  media: item.file,
+  likes: item.likes_count,
+  comments: item.comments_count,
+  shares: 0,
+  liked: likedData?.some((like: any) => like.post_id === item.id && like.like),
+  already_like: likedData?.some((like: any) => like.post_id === item.id),
+  isVideo: item.type === "video",
+  externalLink: item.link,
+  linkText: 'Saiba mais',
+}));
 
   return mapped;
 };
@@ -93,6 +93,7 @@ const fetchRandomFitz = async (limit = 3) => {
 
   // Dados básicos dos vídeos
   useEffect(() => {
+    document.addEventListener("contextmenu", e => e.preventDefault());
     if (!user) return;
     const loadInitial = async () => {
       const initialFitz = await fetchRandomFitz(4);

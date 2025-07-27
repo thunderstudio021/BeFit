@@ -532,7 +532,7 @@ useEffect(() => {
   const [editingModule, setEditingModule] = useState(null)
   const [editingVideo, setEditingVideo] = useState(null)
   const [selectedModuleId, setSelectedModuleId] = useState(null)
-  const [moduleForm, setModuleForm] = useState({ name: "", description: "" })
+  const [moduleForm, setModuleForm] = useState({ name: "", description: "", order_index: 0 })
   const [videoForm, setVideoForm] = useState({
     title: "",
     description: "",
@@ -540,7 +540,8 @@ useEffect(() => {
     video_url: "",
     thumbnail_url: "",
     material_url: "",
-    material_title: ""
+    material_title: "",
+    order_index: 0
   })
 
   // Add ad management functions after existing functions
@@ -1051,7 +1052,8 @@ const { error: updateError } = await supabase
       video_url: "",
       thumbnail_url: "",
       material_url: "",
-      material_title: ""
+      material_title: "",
+      order_index: 0
     })
     setSelectedModuleId(null)
     setShowVideoModal(false)
@@ -1828,7 +1830,7 @@ const { error: updateError } = await supabase
                 <Button
                   onClick={() => {
                     setEditingModule(null)
-                    setModuleForm({ name: "", description: "" })
+                    setModuleForm({ name: "", description: "", order_index: 0 })
                     setShowModuleModal(true)
                   }}
                   className="bg-gradient-to-r from-pink-500 to-purple-500 text-white"
@@ -1984,7 +1986,8 @@ const { error: updateError } = await supabase
                                   duration: "",
                                   thumbnail_url: "",
                                   material_url: "",
-                                  material_title:""
+                                  material_title:"",
+                                  order_index: 0
                                 })
                                 setShowVideoModal(true)
                               }}
@@ -2872,6 +2875,15 @@ const { error: updateError } = await supabase
                     className="mt-1.5"
                   />
                 </div>
+                <div>
+                  <Label className="text-sm font-medium">Ordem do modulo</Label>
+                  <Input
+                    value={moduleForm.order_index}
+                    onChange={(e) => setModuleForm({ ...moduleForm, order_index: parseInt(e.target.value) })}
+                    placeholder="Ex: 1"
+                    className="mt-1.5"
+                  />
+                </div>
               </div>
               <div className="p-4 border-t border-border/50 flex-shrink-0">
                 <div className="flex gap-2">
@@ -2926,10 +2938,19 @@ const { error: updateError } = await supabase
                   />
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">Nome</Label>
+                  <Label className="text-sm font-medium">Nome do material</Label>
                   <Input
                     value={videoForm.material_title}
                     onChange={(e) => setVideoForm((prev) => ({ ...prev, material_title: e.target.value }))}
+                    placeholder="Ex: Treino de Peito Intenso"
+                    className="mt-1.5"
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Ordem do video</Label>
+                  <Input
+                    value={videoForm.order_index}
+                    onChange={(e) => setVideoForm((prev) => ({ ...prev, order_index: parseInt(e.target.value) }))}
                     placeholder="Ex: Treino de Peito Intenso"
                     className="mt-1.5"
                   />

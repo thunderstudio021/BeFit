@@ -151,6 +151,12 @@ export default function StatisticsPage() {
       }
     })
 
+    // 1. Buscar quantidade de [psts] (likes e fitz_likes)
+    const { count: postsCount } = await supabase
+      .from("posts")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+
     // 2. Buscar quantidade de likes (likes e fitz_likes)
     const { count: likesCount } = await supabase
       .from("likes")
@@ -201,7 +207,9 @@ export default function StatisticsPage() {
       (fitzLikesCount || 0) +
       (commentsCount || 0) +
       (fitzCommentsCount || 0) +
-      (repostsCount || 0)
+      (repostsCount || 0) +
+      (postsCount || 0)
+      
 
     // 8. Atualiza estados
     setCompletedChallenges(completed)

@@ -49,5 +49,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/admin/:path*', '/planner/:path*','/fitz/:path*','/store/:path*', '/dashboard/:path*'], // rotas protegidas
+  matcher: ['/', '/admin/:path*', '/planner/:path*','/premium','/fitz/:path*','/store/:path*', '/dashboard/:path*'], // rotas protegidas
 }

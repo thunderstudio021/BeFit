@@ -10,44 +10,38 @@ const supabase = createClient(
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const event = body.event;
-    const payload = body.payload;
+    const event = body.Event;
+    const data = body.Data;
 
-    const {
-    user,
-    status,
-    plan,
-    current_period_end,
-    created_at,
-    canceled_at,
-    payment_method,
-    amount,
-    currency
-  } = payload;
-
-  const email = user?.email;
+    const email = data?.Buyer?.Email;
+    const createdAt = body.CreatedAt;
+    const amount = data?.Purchase?.Price?.Value || null;
+    const currency = 'BRL'; // ou adaptar se necessário
+    const payment_method = data?.Purchase?.Payment?.PaymentMethod || 'unknown';
+    const subscriptionId = data?.Subscriptions?.[0]?.Id;
+    const expiredAt = data?.Subscriptions?.[0]?.ExpiredDate || null;
+    const canceledAt = data?.Subscriptions?.[0]?.CanceledDate || null;
 
     if (!email) {
       return NextResponse.json({ error: 'Email ausente no payload' }, { status: 400 });
     }
 
-    // Buscar o profile pelo e-mail
+    // Buscar ou criar profile
     let { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('id')
       .eq('email', email)
       .maybeSingle();
 
-    // Se não encontrar, criar um novo profile
     if (!profile) {
       const { data: createdProfile, error: createError } = await supabase
         .from('profiles')
         .insert({
           email,
-          is_premium: status === 'active',
-          user_type: status === 'active' ? 'premium' : 'free',
-          subscription_status: status || 'active',
-          subscription_expires_at: current_period_end
+          is_premium: event === 'Recurrent_Payment',
+          user_type: event === 'Recurrent_Payment' ? 'premium' : 'free',
+          subscription_status: event === 'Recurrent_Payment' ? 'active' : event,
+          subscription_expires_at: expiredAt || canceledAt || null
         })
         .select('id')
         .single();
@@ -61,20 +55,19 @@ export async function POST(req: Request) {
 
     const userId = profile.id;
 
+    // Trata os diferentes eventos
     switch (event) {
-      case 'subscription.created':
-        await supabase.from('subscriptions').insert([
-          {
-            user_id: userId,
-            status: 'active',
-            plan_type: 'premium',
-            payment_method,
-            amount,
-            currency,
-            started_at: created_at,
-            expires_at: current_period_end
-          }
-        ]);
+      case 'Recurrent_Payment':
+        await supabase.from('subscriptions').insert([{
+          user_id: userId,
+          status: 'active',
+          plan_type: 'premium',
+          payment_method,
+          amount,
+          currency,
+          started_at: createdAt,
+          expires_at: expiredAt
+        }]);
 
         await supabase
           .from('profiles')
@@ -82,39 +75,26 @@ export async function POST(req: Request) {
             is_premium: true,
             user_type: 'premium',
             subscription_status: 'active',
-            subscription_expires_at: current_period_end
+            subscription_expires_at: expiredAt
           })
           .eq('id', userId);
         break;
 
-      case 'subscription.updated':
+      case 'Refund_Period_Over':
+        // Aqui você pode apenas registrar a info ou marcar como "não reembolsável"
         await supabase
           .from('subscriptions')
-          .update({
-            status,
-            plan_type: 'premium',
-            expires_at: current_period_end,
-            updated_at: new Date().toISOString()
-          })
+          .update({ refund_available: false })
           .eq('user_id', userId);
-
-        await supabase
-          .from('profiles')
-          .update({
-            is_premium: status === 'active',
-            user_type: status === 'active' ? 'premium' : 'free',
-            subscription_status: status,
-            subscription_expires_at: current_period_end
-          })
-          .eq('id', userId);
         break;
 
-      case 'subscription.canceled':
+      case 'Subscription_Canceled':
         await supabase
           .from('subscriptions')
           .update({
             status: 'cancelled',
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            expires_at: canceledAt
           })
           .eq('user_id', userId);
 
@@ -124,7 +104,28 @@ export async function POST(req: Request) {
             is_premium: false,
             user_type: 'free',
             subscription_status: 'cancelled',
-            subscription_expires_at: current_period_end || canceled_at || new Date().toISOString()
+            subscription_expires_at: canceledAt
+          })
+          .eq('id', userId);
+        break;
+
+      case 'Subscription_Expired':
+        await supabase
+          .from('subscriptions')
+          .update({
+            status: 'expired',
+            updated_at: new Date().toISOString(),
+            expires_at: expiredAt
+          })
+          .eq('user_id', userId);
+
+        await supabase
+          .from('profiles')
+          .update({
+            is_premium: false,
+            user_type: 'free',
+            subscription_status: 'expired',
+            subscription_expires_at: expiredAt
           })
           .eq('id', userId);
         break;

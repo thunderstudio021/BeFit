@@ -540,8 +540,8 @@ const setVideoDuration = (duration:any) => {const _module = {...moduleData}; _mo
             {/* Current Lesson Info - Desktop: abaixo do vídeo */}
             <div className={cn("hidden lg:block p-6 border-b", isDark ? "border-gray-800" : "border-gray-200")}>
               <h2 className="text-lg font-bold mb-2">{currentLesson.title}</h2>
-              <p className={cn("text-sm mb-4", isDark ? "text-gray-400" : "text-gray-600")}>
-                {currentLesson.description}
+              <p className={cn("whitespace-pre-line text-sm mb-4", isDark ? "text-gray-400" : "text-gray-600")}>
+                {currentLesson.description.replace(/\\n/g, '\n')}
               </p>
 
               {/* Download Material */}
@@ -561,7 +561,7 @@ const setVideoDuration = (duration:any) => {const _module = {...moduleData}; _mo
             {/* Current Lesson Info - Mobile */}
             <div className={cn("lg:hidden p-4 border-b", isDark ? "border-gray-800" : "border-gray-200")}>
               <h2 className="text-lg font-bold mb-2">{currentLesson.title}</h2>
-              <p className={cn("text-sm mb-4", isDark ? "text-gray-400" : "text-gray-600")}>
+              <p className={cn("whitespace-pre-line text-sm mb-4", isDark ? "text-gray-400" : "text-gray-600")}>
                 {currentLesson.description}
               </p>
 
