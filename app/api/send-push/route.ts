@@ -31,13 +31,27 @@ export async function POST() {
   let enviados = 0;
 
   for (const notification of notifications) {
-    if (!notification.user_id) continue;
+    let subscriptions = [];
+    let subError = null;
 
-    // 2. Buscar assinaturas push do usuário
-    const { data: subscriptions, error: subError } = await supabase
-      .from("push_subscriptions")
-      .select("*")
-      .eq("user_id", notification.user_id);
+    // Se tiver user_id, busca apenas as assinaturas daquele usuário
+    if (notification.user_id) {
+      const { data, error } = await supabase
+        .from("push_subscriptions")
+        .select("*")
+        .eq("user_id", notification.user_id);
+
+      subscriptions = data || [];
+      subError = error;
+    } else {
+      // Se não tiver user_id, busca todas as assinaturas
+      const { data, error } = await supabase
+        .from("push_subscriptions")
+        .select("*");
+
+      subscriptions = data || [];
+      subError = error;
+    }
 
     if (subError) {
       console.error("Erro ao buscar assinaturas:", subError);
@@ -53,7 +67,6 @@ export async function POST() {
 
     let sucesso = false;
 
-    // 3. Enviar notificação para cada assinatura
     for (const sub of subscriptions) {
       try {
         await webpush.sendNotification(
@@ -72,7 +85,7 @@ export async function POST() {
       }
     }
 
-    // 4. Atualizar campo sentAt se pelo menos uma notificação foi enviada
+    // Atualiza o sentAt se pelo menos uma notificação foi enviada
     if (sucesso) {
       await supabase
         .from("notifications")

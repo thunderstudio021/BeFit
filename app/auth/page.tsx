@@ -60,7 +60,8 @@ export default function AuthPage() {
       user_type: "free", // ou o que desejar
       full_name: `${registerData.firstName} ${registerData.lastName}`,
       username: registerData.username,
-      whatsapp: registerData.whatsapp
+      whatsapp: registerData.whatsapp,
+      email: registerData.email,
     })
     .eq("id", data.user?.id)
 

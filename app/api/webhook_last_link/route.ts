@@ -78,7 +78,20 @@ export async function POST(req: Request) {
             subscription_expires_at: expiredAt
           })
           .eq('id', userId);
+
+        await supabase.from('notifications').insert([
+          {
+            user_id: userId, // ou null se for para todos
+            type: 'info',
+            title: 'Plano ativado com sucesso!',
+            message: 'Seu plano foi ativado e está disponível para uso.',
+            action_text: 'Ver benefícios',
+            action_link: '/premium',
+          },
+        ]);
         break;
+
+        
 
       case 'Refund_Period_Over':
         // Aqui você pode apenas registrar a info ou marcar como "não reembolsável"
@@ -107,6 +120,16 @@ export async function POST(req: Request) {
             subscription_expires_at: canceledAt
           })
           .eq('id', userId);
+        await supabase.from('notifications').insert([
+          {
+            user_id: userId, // ou null se for para todos
+            type: 'info',
+            title: 'Seu Plano foi cancelado!',
+            message: 'Seu plano foi cancelado e está indisponível para uso.',
+            action_text: 'Ver benefícios',
+            action_link: '/',
+          },
+        ]);
         break;
 
       case 'Subscription_Expired':
@@ -128,6 +151,16 @@ export async function POST(req: Request) {
             subscription_expires_at: expiredAt
           })
           .eq('id', userId);
+        await supabase.from('notifications').insert([
+          {
+            user_id: userId, // ou null se for para todos
+            type: 'info',
+            title: 'Seu Plano foi cancelado!',
+            message: 'Seu plano foi cancelado e está indisponível para uso.',
+            action_text: 'Ver benefícios',
+            action_link: '/',
+          },
+        ]);
         break;
 
       default:
