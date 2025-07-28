@@ -94,7 +94,7 @@ export default function AuthPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <img src={"https://supabase.befitbrasil.app/storage/v1/object/public/befit//BEFIT---LOGO-BRANCA.png"} />
+          <img src={"https://supabase.befitbrasil.app/storage/v1/object/public/befit/BEFIT---LOGO-BRANCA.png"} />
           <p className="text-gray-300">Sua jornada fitness começa aqui</p>
         </div>
 

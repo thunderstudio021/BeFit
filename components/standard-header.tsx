@@ -49,7 +49,7 @@ export default function StandardHeader() {
     <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-background/80 backdrop-blur-md border-b border-border/50">
       <div className="flex items-center gap-2">
         <span className="text-xl font-bold" style={{maxWidth: 80}}>
-          <img src={!isDark ? "https://efjnuswulzfgztlwpxvu.supabase.co/storage/v1/object/public/befit//BEFIT---LOGO-PRETA.png":"https://efjnuswulzfgztlwpxvu.supabase.co/storage/v1/object/public/befit//BEFIT---LOGO-BRANCA.png"} />
+          <img src={!isDark ? "https://supabase.befitbrasil.app/storage/v1/object/public/befit/BEFIT---LOGO-PRETA.png":"https://supabase.befitbrasil.app/storage/v1/object/public/befit/BEFIT---LOGO-BRANCA.png"} />
         </span>
       </div>
       <div className="flex items-center gap-4">
