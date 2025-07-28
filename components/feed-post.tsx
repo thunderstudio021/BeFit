@@ -59,6 +59,7 @@ interface FeedPostProps {
   username:any
   videoUrl:any
   isAds: boolean
+  profile:any
   onPostCreated?: () => void // Adicionar esta linha
 }
 
@@ -93,6 +94,7 @@ export default function FeedPost({
   alreadyLiked,
   username,
   isAds,
+  profile,
   onPostCreated, // Adicionar esta linha
 }: FeedPostProps) {
   const router = useRouter()
@@ -574,7 +576,7 @@ const handlePollVote = async (index: number) => {
           <video
             ref={setVideoRef(0)}
             src={videoUrl}
-            className="w-full h-full object-cover"
+            className="w-full object-cover"
             loop
             muted={muted}
             playsInline
@@ -830,6 +832,7 @@ const handlePollVote = async (index: number) => {
         onClose={() => setShowComments(false)}
         postId={postId}
         user={User}
+        profile={profile}
         onCommentAdded={handleCommentAdded}
       />
     </>

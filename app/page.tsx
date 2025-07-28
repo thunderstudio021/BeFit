@@ -718,6 +718,7 @@ useEffect(() => {
                       isRepost={post.isRepost}
                       repostedBy={post.repostedBy}
                       videoUrl={post.video_url}
+                      profile={profile}
                     />
                     {index < forYouPosts.length - 1 && <Separator className="my-2 opacity-50" />}
                   </div>
@@ -764,6 +765,7 @@ useEffect(() => {
                       repostedBy={post.repostedBy}
                       isAds={post.isAds || false}
                       videoUrl={post.video_url}
+                      profile={profile}
                     />
                     {index < communityPosts.length - 1 && <Separator className="my-2 opacity-50" />}
                   </div>

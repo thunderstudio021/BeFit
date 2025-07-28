@@ -352,7 +352,7 @@ export default function CreatePost({ location, onClose, className, onPostCreated
         <div className="flex items-center gap-3 mb-4">
           <Avatar className="w-10 h-10 border-2 border-purple-500">
             <Image
-              src="/placeholder.svg?height=40&width=40"
+              src={profile.avatar_url || "/placeholder.svg?height=40&width=40"}
               alt="Avatar"
               width={40}
               height={40}

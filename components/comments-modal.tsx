@@ -21,7 +21,8 @@ interface CommentsModalProps {
   initialComments?: Comment[]
   onCommentAdded?: () => void,
   user:any,
-  isFitz:boolean
+  isFitz:boolean,
+  profile: any,
   isAds: boolean
 }
 
@@ -33,6 +34,7 @@ export default function CommentsModal({
   onCommentAdded,
   user,
   isFitz,
+  profile,
   isAds
 }: CommentsModalProps) {
   const [commentText, setCommentText] = useState("")
@@ -249,7 +251,7 @@ export default function CommentsModal({
           <div className="flex items-center gap-3 p-4 border-t border-border bg-card">
             <div className="w-8 h-8 rounded-full bg-muted flex-shrink-0 overflow-hidden">
               <Image
-                src="/placeholder.svg?height=32&width=32"
+                src={profile?.avatar_url || "/placeholder.svg?height=32&width=32"}
                 alt="Your avatar"
                 width={32}
                 height={32}

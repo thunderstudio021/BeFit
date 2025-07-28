@@ -10,6 +10,7 @@ import FitcoinNotification from "@/components/fitcoin-notification"
 import CommentsModal from "@/components/comments-modal"
 import { supabase } from "@/lib/supabase"
 import { useUser } from "@supabase/auth-helpers-react"
+import { getUserProfile } from "@/lib/services/profileService"
 
 interface FitzItem {
   already_like: any
@@ -48,10 +49,13 @@ export default function FitzPage() {
   const wasLongPress = useRef(false);
   const pressTimer = useRef<any>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+   const [profile, setProfile] = useState<any>(null)
 const lastLoadedIndex = useRef(-1)
 
 
   const [loadedIds, setLoadedIds] = useState<Set<number>>(new Set());
+
+  
 const fetchRandomFitz = async (limit = 3) => {
   const { data, error } = await supabase
     .rpc('get_random_fitz', { limit_param: limit })
@@ -89,7 +93,13 @@ const fetchRandomFitz = async (limit = 3) => {
 
 
 
-
+  useEffect(() => {
+        if (!user) return
+    
+        getUserProfile(user.id)
+          .then((data) => {setProfile(data);})
+          .catch((err) => console.error(err))
+      }, [user])
 
   // Dados básicos dos vídeos
   useEffect(() => {
@@ -443,7 +453,7 @@ const fetchRandomFitz = async (limit = 3) => {
 
       {/* MOBILE: Formato vertical tela cheia estilo TikTok/Reels */}
       {isMobile && (
-      <div className="md:hidden h-screen w-screen bg-black overflow-hidden">
+      <div className="noselect select-none touch-callout-none md:hidden h-screen w-screen bg-black overflow-hidden">
         <div ref={containerRef} 
                   onContextMenu={(e) => e.preventDefault()}
                     onMouseDown={() => handleMediaPress(currentIndex)}
@@ -599,7 +609,7 @@ const fetchRandomFitz = async (limit = 3) => {
         {/* Conteúdo principal */}
         {!isMobile && (
         
-        <div className="flex-1 h-screen">
+        <div className="noselect select-none touch-callout-none flex-1 h-screen">
           <div ref={containerRef} 
           onClick={() => handleMediaClick(currentIndex)} 
           onMouseDown={() => handleMediaPress(currentIndex)} 
@@ -757,6 +767,7 @@ const fetchRandomFitz = async (limit = 3) => {
 
       {/* Modal de Comentários Padrão */}
       <CommentsModal
+        profile={profile}
         isOpen={showComments}
         isFitz={true}
         user={user}
