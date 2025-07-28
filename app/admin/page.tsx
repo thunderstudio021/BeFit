@@ -1771,7 +1771,7 @@ const { error: updateError } = await supabase
                   </div>
 
                   <FileUploadArea
-                    setDuration={() => {}}
+                    setDuration={(a:any) => {}}
                     uploadKey="premium-banner-store"
                     setData={(banner:string) => setStoreBannerData({...storeBannerData, image_url: banner})}
                     accept="image/*"
@@ -1932,7 +1932,7 @@ const { error: updateError } = await supabase
                   </div>
 
                   <FileUploadArea
-                    setDuration={() => {}}
+                    setDuration={(a:any) => {}}
                     uploadKey="premium-banner-main"
                     setData={(base64:any) => setBannerData((prev) => ({ ...prev, image_url: base64 }))}
                     accept="image/*"
@@ -2725,6 +2725,7 @@ const { error: updateError } = await supabase
                   <Label className="text-foreground text-sm">Upload de Imagem</Label>
                   <div className="mt-1">
                     <FileUploadArea
+                    setDuration={(a:any) => {}}
                       setData={(base64:any) => setEditingProduct({...editingProduct, image_url: base64})}
                       uploadKey={`product-image-${editingProduct.id || "new"}`}
                       accept="image/*"
@@ -2740,6 +2741,7 @@ const { error: updateError } = await supabase
                   <Label className="text-foreground text-sm">Upload de Arquivo</Label>
                   <div className="mt-1">
                     <FileUploadArea
+                    setDuration={(a:any) => {}}
                       setData={(base64:any) => setEditingProduct({...editingProduct, file_url: base64})}
                       uploadKey={`product-file-${editingProduct.id || "new"}`}
                       accept=".pdf,.doc,.docx,.zip"
@@ -2820,6 +2822,7 @@ const { error: updateError } = await supabase
                   <Label className="text-foreground text-sm">Upload de Arquivo</Label>
                   <div className="mt-1">
                     <FileUploadArea
+                    setDuration={(a:any) => {}}
                     setData={(base64:any) => setEditingFitz((prev:any) => ({ ...prev, file: base64 }))}
                       uploadKey={`fitz-${editingFitz.id || "new"}`}
                       accept="image/*,video/*,.heic,.mov,.mp4"
@@ -2959,7 +2962,7 @@ const { error: updateError } = await supabase
                   <Label className="text-sm font-medium">Upload Material de Apoio</Label>
                   <div className="mt-1.5">
                     <FileUploadArea
-                      setDuration={() => {}}
+                      setDuration={(a:any) => {}}
                       setData={(base64:any) => setVideoForm((prev) => ({ ...prev, material_url: base64 }))}
                       uploadKey={`video-material-${selectedModuleId}-${editingVideo || "new"}`}
                       accept=".pdf,.doc,.docx,.zip,.txt"
@@ -2974,7 +2977,7 @@ const { error: updateError } = await supabase
                   <Label className="text-sm font-medium">Upload Foto de Capa/Thumb</Label>
                   <div className="mt-1.5">
                     <FileUploadArea
-                    setDuration={() => {}}
+                    setDuration={(a:any) => {}}
                     setData={(base64:any) => setVideoForm((prev) => ({ ...prev, thumbnail_url: base64 }))}
                       uploadKey={`video-thumb-${selectedModuleId}-${editingVideo || "new"}`}
                       accept="image/*"
@@ -3272,6 +3275,7 @@ const { error: updateError } = await supabase
                   <Label className="text-sm font-medium">Upload da Imagem</Label>
                   <div className="mt-1.5">
                     <FileUploadArea
+                    setDuration={(a:any) => {}}
                       setData={(base64:any) => setAdForm((prev) => ({ ...prev, image: base64 }))}
                       uploadKey={`ad-image-${editingAd || "new"}`}
                       accept=".heic,.jpg,.jpeg,.png"
