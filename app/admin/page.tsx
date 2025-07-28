@@ -286,25 +286,16 @@ const [adminSummary, setAdminSummary] = useState<AdminSummary>({
     getData();
   }, []);
 
-  const handleFileUpload = async (
+const handleFileUpload = async (
   file: File,
   setData: (param: any) => void,
   setDuration?: (duration: number) => void
 ) => {
   try {
-    // Primeiro, lemos a duração do vídeo
-    const videoEl = document.createElement("video");
-    videoEl.preload = "metadata";
+    const fileExt = file.name.split(".").pop();
+    const filePath = `uploads/${Date.now()}-${file.name}`;
 
-    videoEl.onloadedmetadata = async () => {
-      window.URL.revokeObjectURL(videoEl.src);
-      const duration = videoEl.duration;
-      if (setDuration) setDuration(duration); // ⏱️ salva a duração
-
-      // Continua com o upload
-      const fileExt = file.name.split(".").pop();
-      const filePath = `uploads/${Date.now()}-${file.name}`;
-
+    const uploadFile = async () => {
       const { error: uploadError } = await supabase.storage
         .from("befit")
         .upload(filePath, file, {
@@ -328,7 +319,28 @@ const [adminSummary, setAdminSummary] = useState<AdminSummary>({
       }
     };
 
-    videoEl.src = URL.createObjectURL(file);
+    // Se for vídeo, tenta obter a duração primeiro
+    if (file.type.startsWith("video/")) {
+      const videoEl = document.createElement("video");
+      videoEl.preload = "metadata";
+
+      videoEl.onloadedmetadata = async () => {
+        window.URL.revokeObjectURL(videoEl.src);
+        const duration = videoEl.duration;
+        if (setDuration) setDuration(duration); // ⏱️ salva a duração
+        await uploadFile();
+      };
+
+      videoEl.onerror = async () => {
+        console.warn("Erro ao carregar metadados do vídeo, prosseguindo com upload.");
+        await uploadFile();
+      };
+
+      videoEl.src = URL.createObjectURL(file);
+    } else {
+      // Se não for vídeo, faz upload direto
+      await uploadFile();
+    }
   } catch (err) {
     console.error("Erro ao enviar arquivo:", err);
   }

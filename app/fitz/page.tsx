@@ -773,7 +773,7 @@ const fetchRandomFitz = async (limit = 3) => {
         user={user}
         onClose={() => setShowComments(false)}
         postId={`${fitz[currentIndex]?.id}`} // Passa o ID original
-      />
+        isAds={false}      />
     </div>
   )
 }
