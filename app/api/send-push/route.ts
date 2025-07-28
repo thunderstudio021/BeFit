@@ -62,6 +62,7 @@ export async function POST() {
       title: notification.title,
       body: notification.message,
       actionText: notification.action_text,
+      icon: "https://befitbrasil.app/icon-192x192.png",
       actionLink: notification.action_link,
     });
 
