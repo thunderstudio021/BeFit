@@ -15,6 +15,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  
+
   return (
     <html lang="pt-BR">
       <head>
@@ -29,6 +31,20 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className={inter.className}>
+        {typeof window !== 'undefined' && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                window.addEventListener('error', function(e) {
+                  if (e && e.message && e.message.includes('Loading chunk')) {
+                    console.warn('Erro ao carregar chunk. Recarregando página...');
+                    window.location.reload();
+                  }
+                });
+              `,
+            }}
+          />
+        )}
         <ThemeProvider>
           <FitcoinProvider>
             
