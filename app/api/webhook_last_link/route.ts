@@ -1,6 +1,7 @@
 "use server";
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import fs from 'fs/promises';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,6 +11,11 @@ const supabase = createClient(
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    await fs.writeFile(
+      `/tmp/webhook-${Date.now()}.json`,
+      JSON.stringify(body, null, 2)
+    );
+
     const event = body.Event;
     const data = body.Data;
 
