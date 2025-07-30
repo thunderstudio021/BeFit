@@ -44,9 +44,9 @@ export async function POST(req: Request) {
         .from('profiles')
         .insert({
           email,
-          is_premium: event === 'Recurrent_Payment',
-          user_type: event === 'Recurrent_Payment' ? 'premium' : 'free',
-          subscription_status: event === 'Recurrent_Payment' ? 'active' : event,
+          is_premium: (event === 'Recurrent_Payment' || event === 'Product_Access_Started' || event === 'Subscription_Product_Access' ),
+          user_type: (event === 'Recurrent_Payment' || event === 'Product_Access_Started' || event === 'Subscription_Product_Access') ? 'premium' : 'free',
+          subscription_status: (event === 'Recurrent_Payment' || event === 'Product_Access_Started' || event === 'Subscription_Product_Access') ? 'active' : event,
           subscription_expires_at: expiredAt || canceledAt || null
         })
         .select('id')
@@ -98,6 +98,74 @@ export async function POST(req: Request) {
         break;
 
         
+
+      case 'Subscription_Product_Access':
+        await supabase.from('subscriptions').insert([{
+          user_id: userId,
+          status: 'active',
+          plan_type: 'premium',
+          payment_method,
+          amount,
+          currency,
+          started_at: createdAt,
+          expires_at: expiredAt
+        }]);
+
+        await supabase
+          .from('profiles')
+          .update({
+            is_premium: true,
+            user_type: 'premium',
+            subscription_status: 'active',
+            subscription_expires_at: expiredAt
+          })
+          .eq('id', userId);
+
+        await supabase.from('notifications').insert([
+          {
+            user_id: userId, // ou null se for para todos
+            type: 'info',
+            title: 'Plano ativado com sucesso!',
+            message: 'Seu plano foi ativado e está disponível para uso.',
+            action_text: 'Ver benefícios',
+            action_link: '/premium',
+          },
+        ]);
+        break;  
+
+      case 'Product_Access_Started':
+        await supabase.from('subscriptions').insert([{
+          user_id: userId,
+          status: 'active',
+          plan_type: 'premium',
+          payment_method,
+          amount,
+          currency,
+          started_at: createdAt,
+          expires_at: expiredAt
+        }]);
+
+        await supabase
+          .from('profiles')
+          .update({
+            is_premium: true,
+            user_type: 'premium',
+            subscription_status: 'active',
+            subscription_expires_at: expiredAt
+          })
+          .eq('id', userId);
+
+        await supabase.from('notifications').insert([
+          {
+            user_id: userId, // ou null se for para todos
+            type: 'info',
+            title: 'Plano ativado com sucesso!',
+            message: 'Seu plano foi ativado e está disponível para uso.',
+            action_text: 'Ver benefícios',
+            action_link: '/premium',
+          },
+        ]);
+        break;  
 
       case 'Refund_Period_Over':
         // Aqui você pode apenas registrar a info ou marcar como "não reembolsável"
@@ -168,6 +236,39 @@ export async function POST(req: Request) {
           },
         ]);
         break;
+
+        case 'Product_Access_Ended':
+        await supabase
+          .from('subscriptions')
+          .update({
+            status: 'expired',
+            updated_at: new Date().toISOString(),
+            expires_at: expiredAt
+          })
+          .eq('user_id', userId);
+
+        await supabase
+          .from('profiles')
+          .update({
+            is_premium: false,
+            user_type: 'free',
+            subscription_status: 'expired',
+            subscription_expires_at: expiredAt
+          })
+          .eq('id', userId);
+        await supabase.from('notifications').insert([
+          {
+            user_id: userId, // ou null se for para todos
+            type: 'info',
+            title: 'Seu Plano foi cancelado!',
+            message: 'Seu plano foi cancelado e está indisponível para uso.',
+            action_text: 'Ver benefícios',
+            action_link: '/',
+          },
+        ]);
+        break;
+
+        
 
       default:
         console.warn('Evento não tratado:', event);
