@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     const event = body.Event;
     const data = body.Data;
 
-    const email = data?.Buyer?.Email;
+    const email = data?.Buyer?.Email || data?.Member?.Email;
     const createdAt = body.CreatedAt;
     const amount = data?.Purchase?.Price?.Value || null;
     const currency = 'BRL'; // ou adaptar se necessário
