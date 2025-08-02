@@ -240,12 +240,12 @@ const loadMorePosts = async (tab: "forYou" | "community") => {
     const filtered = sortedPosts.filter(
       (p) => p?.profiles?.user_type === "producer" || p?.profiles?.user_type === "admin" || p?.profiles?.is_verified
     )
-    const intercalated = getIntercalatedPosts(filtered, adsFromDb)
-    setForYou((prev) => [...prev, ...intercalated])
+    const intercalated = getIntercalatedPosts([...forYouPosts, ...filtered], adsFromDb)
+    setForYou((prev) => [...intercalated])
     setPageForYou((prev) => prev + 1)
   } else {
-    const intercalated = getIntercalatedPosts(sortedPosts, adsFromDb)
-    setCommunityPosts((prev) => [...prev, ...intercalated])
+    const intercalated = getIntercalatedPosts([...communityPostsom, ...sortedPosts], adsFromDb)
+    setCommunityPosts((prev) => [...intercalated])
     setPageCommunity((prev) => prev + 1)
   }
 
