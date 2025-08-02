@@ -695,7 +695,7 @@ useEffect(() => {
                       user={post.user}
                       avatar={post.avatar}
                       content={post.content}
-                      isAds={post.isAds || false}
+                      isAds={post.type == "ad"}
                       image={post.image}
                       videoThumbnail={post.videoThumbnail}
                       backgroundColor={post.backgroundColor}
@@ -766,7 +766,7 @@ useEffect(() => {
                       username={post.username}
                       isRepost={post.isRepost}
                       repostedBy={post.repostedBy}
-                      isAds={post.isAds || false}
+                      isAds={post.type == "ad"}
                       videoUrl={post.video_url}
                       profile={profile}
                     />

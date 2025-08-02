@@ -826,7 +826,7 @@ const handlePollVote = async (index: number) => {
 
       {/* Modal de comentários */}
       <CommentsModal
-        isAds={isAds || false}
+        isAds={isAds}
         isFitz={false}
         isOpen={showComments}
         onClose={() => setShowComments(false)}
