@@ -244,7 +244,7 @@ const loadMorePosts = async (tab: "forYou" | "community") => {
     setForYou((prev) => [...intercalated])
     setPageForYou((prev) => prev + 1)
   } else {
-    const intercalated = getIntercalatedPosts([...communityPostsom, ...sortedPosts], adsFromDb)
+    const intercalated = getIntercalatedPosts([...communityPosts, ...sortedPosts], adsFromDb)
     setCommunityPosts((prev) => [...intercalated])
     setPageCommunity((prev) => prev + 1)
   }
