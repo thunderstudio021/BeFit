@@ -238,7 +238,7 @@ const loadMorePosts = async (tab: "forYou" | "community") => {
 
   if (tab === "forYou") {
     const filtered = sortedPosts.filter(
-      (p) => p?.profiles?.user_type === "producer" || p?.profiles?.user_type === "admin" || p?.profiles?.is_verified || p?.type != 'ad'
+      (p) => p?.profiles?.user_type === "producer" || p?.profiles?.user_type === "admin" || p?.profiles?.is_verified
     )
     const intercalated = getIntercalatedPosts([...forYouPosts.filter((p) => p?.type != 'ad'), ...filtered], adsFromDb)
     setForYou((prev) => [...intercalated])
