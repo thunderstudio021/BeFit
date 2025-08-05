@@ -1,6 +1,6 @@
 {
   "name": "BBfitness - App Fitness Social",
-  "short_name": "BBfitness",
+  "short_name": "BeFit",
   "description": "App fitness social com foco em saúde, motivação, treinos, receitas e conexão entre usuários",
   "start_url": "/",
   "display": "standalone",

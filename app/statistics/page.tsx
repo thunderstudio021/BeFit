@@ -257,7 +257,7 @@ export default function StatisticsPage() {
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
                   <Coins className="w-5 h-5 text-white" />
                 </div>
-                Resumo de Fitcoins - Dezembro 2024
+                Resumo de Fitcoins
               </CardTitle>
             </CardHeader>
             <CardContent>

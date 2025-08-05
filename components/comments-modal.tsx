@@ -113,7 +113,7 @@ export default function CommentsModal({
       if(isFitz){
         table = `comments_fitz`
       }
-      if(isFitz){
+      if(isAds){
         table = `comments_ads`
       }
 
