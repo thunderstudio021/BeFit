@@ -187,6 +187,7 @@ const [adminSummary, setAdminSummary] = useState<AdminSummary>({
     type: "banner",
     status: "active",
     placement: "feed",
+    avatar: ""
   });
 
   const getUsers = async () => {
@@ -568,6 +569,7 @@ useEffect(() => {
       type: "banner",
       status: "active",
       placement: "feed",
+      avatar: "",
     })
     setShowAdModal(true)
   }
@@ -583,6 +585,7 @@ useEffect(() => {
       type: ad.type,
       status: ad.status,
       placement: ad.placement,
+      avatar: ad.avatar,
     })
     setShowAdModal(true)
   }
@@ -3280,6 +3283,23 @@ const { error: updateError } = await supabase
                       <option value="header">Header</option>
                       <option value="sidebar">Sidebar</option>
                     </select>
+                  </div>
+                </div>
+
+                
+
+                <div>
+                  <Label className="text-sm font-medium">Upload da foto de perfil</Label>
+                  <div className="mt-1.5">
+                    <FileUploadArea
+                    setDuration={(a:any) => {}}
+                      setData={(base64:any) => setAdForm((prev) => ({ ...prev, avatar: base64 }))}
+                      uploadKey={`ad-avatarurl-${editingAd || "new"}`}
+                      accept=".heic,.jpg,.jpeg,.png"
+                      title="Clique para fazer upload da imagem"
+                      description="Formatos: .heic, .jpg, .png até 5MB"
+                      color="orange"
+                    />
                   </div>
                 </div>
 
