@@ -321,7 +321,7 @@ function getRandomPhrase() {
   // Atualizar meta de água
   const updateWaterGoal = async () => {
     setWaterGoal(tempWaterGoal * 1000)
-    await supabase.from("profiles").update({water: tempWaterGoal * 1000}).eq("id", user.id)
+    await supabase.from("profiles").update({water: tempWaterGoal}).eq("id", user.id)
     setShowWaterSettings(false)
     showNotification("success", "Meta Atualizada! ⚙️", `Nova meta: ${tempWaterGoal}L por dia`)
   }
