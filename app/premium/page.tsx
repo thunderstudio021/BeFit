@@ -26,7 +26,7 @@ function formatModulesData(rawModules:any) {
     id: module.id,
     title: module.name,
     progress: 0, // aqui você pode calcular depois
-    items: module.premium_videos.map((video:any, vIndex:any) => ({
+    items: module.premium_videos?.sort((a: any, b: any) => a.order_index - b.order_index).map((video:any, vIndex:any) => ({
       id: vIndex + 1,
       title: video.title,
       thumbnail: video.thumbnail_url || "/placeholder.svg",
@@ -87,7 +87,8 @@ export default function PremiumPage() {
           id,
           title,
           thumbnail_url,
-          duration
+          duration,
+          order_index
         )
       `)
       .order("order_index", { ascending: true });
