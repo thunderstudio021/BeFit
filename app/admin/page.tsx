@@ -352,7 +352,7 @@ const handleFileUpload = async (
   setDuration,
   color = "purple",
   multiple = false,
-}) => {
+}: FileUploadAreaProps) => {
   const [uploadingFiles, setUploadingFiles] = useState<Record<string, boolean>>({});
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, boolean>>({});
   const [uploadProgress, setUploadProgress] = useState<number>(0);
@@ -429,36 +429,6 @@ const handleFileUpload = async (
     </div>
   );
 };
-
-  return (
-    <div
-      className={`border-2 border-dashed rounded-lg p-4 sm:p-6 text-center transition-colors cursor-pointer group/upload ${colorClasses[color]}`}
-      onClick={handleClick}
-    >
-      <div className="relative pointer-events-none">
-        {isUploading ? (
-          <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-full bg-current/20 flex items-center justify-center">
-            <div className="w-6 h-6 sm:w-8 sm:h-8 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        ) : (
-          <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-full bg-current/20 flex items-center justify-center group-hover/upload:scale-110 transition-transform">
-            <Upload className="w-6 h-6 sm:w-8 sm:h-8" />
-          </div>
-        )}
-        <p className="text-xs sm:text-sm font-medium">
-          {isUploading ? "Enviando..." : title}
-        </p>
-        <p className="text-xs text-muted-foreground mt-1">{description}</p>
-        {uploadedFile && (
-          <p className="text-xs text-green-500 mt-2 font-medium">
-            ✅ Arquivo enviado!
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
 
   // Estados para modais e edição
   const [editingUser, setEditingUser] = useState<any>(null)
