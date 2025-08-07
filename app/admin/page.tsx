@@ -289,59 +289,52 @@ const [adminSummary, setAdminSummary] = useState<AdminSummary>({
 
 const handleFileUpload = async (
   file: File,
-  setData: (param: any) => void,
-  setDuration?: (duration: number) => void
+  setData: (url: string) => void,
+  setDuration?: (duration: number) => void,
+  setProgress?: (percent: number) => void
 ) => {
   try {
-    const fileExt = file.name.split(".").pop();
-    const filePath = `uploads/${Date.now()}-${file.name}`;
-
-    const uploadFile = async () => {
-      const { error: uploadError } = await supabase.storage
-        .from("befit")
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: false,
-        });
-
-      if (uploadError) {
-        console.error("Erro ao fazer upload para Supabase:", uploadError);
-        return;
-      }
-
-      const { data: urlData } = supabase.storage
-        .from("befit")
-        .getPublicUrl(filePath);
-
-      const publicUrl = urlData?.publicUrl;
-      if (publicUrl) {
-        setData(publicUrl);
-        console.log("Arquivo enviado para Supabase:", publicUrl);
-      }
-    };
-
-    // Se for vídeo, tenta obter a duração primeiro
+    // Extrai duração se for vídeo
     if (file.type.startsWith("video/")) {
       const videoEl = document.createElement("video");
       videoEl.preload = "metadata";
-
-      videoEl.onloadedmetadata = async () => {
-        window.URL.revokeObjectURL(videoEl.src);
-        const duration = videoEl.duration;
-        if (setDuration) setDuration(duration); // ⏱️ salva a duração
-        await uploadFile();
+      videoEl.onloadedmetadata = () => {
+        setDuration?.(videoEl.duration);
+        URL.revokeObjectURL(videoEl.src);
       };
-
-      videoEl.onerror = async () => {
-        console.warn("Erro ao carregar metadados do vídeo, prosseguindo com upload.");
-        await uploadFile();
+      videoEl.onerror = () => {
+        console.warn("Erro ao carregar metadados do vídeo.");
       };
-
       videoEl.src = URL.createObjectURL(file);
-    } else {
-      // Se não for vídeo, faz upload direto
-      await uploadFile();
     }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload", true);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && setProgress) {
+        const percent = Math.round((event.loaded * 100) / event.total);
+        setProgress(percent);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        const response = JSON.parse(xhr.responseText);
+        setData(response.url);
+      } else {
+        console.error("Erro no upload:", xhr.responseText);
+      }
+    };
+
+    xhr.onerror = () => {
+      console.error("Erro de rede durante upload.");
+    };
+
+    xhr.send(formData);
   } catch (err) {
     console.error("Erro ao enviar arquivo:", err);
   }
@@ -360,36 +353,82 @@ const handleFileUpload = async (
   color = "purple",
   multiple = false,
 }) => {
-  const isUploading = uploadingFiles[uploadKey]
-  const uploadedFile = uploadedFiles[uploadKey]
+  const [uploadingFiles, setUploadingFiles] = useState<Record<string, boolean>>({});
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, boolean>>({});
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+
+  const isUploading = uploadingFiles[uploadKey];
+  const uploadedFile = uploadedFiles[uploadKey];
 
   const colorClasses = {
     purple: "border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/10 text-purple-500",
     green: "border-green-500/30 bg-green-500/5 hover:bg-green-500/10 text-green-500",
     blue: "border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 text-blue-500",
     orange: "border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/10 text-orange-500",
-  }
+  };
 
   const handleClick = () => {
-    const input = document.createElement("input")
-    input.type = "file"
-    input.accept = accept
-    input.multiple = multiple
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = accept;
+    input.multiple = multiple;
 
     input.onchange = async (e) => {
-      const file = e.target.files?.[0]
-      if (!file) return
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-      setUploadingFiles((prev) => ({ ...prev, [uploadKey]: true }))
+      setUploadingFiles((prev) => ({ ...prev, [uploadKey]: true }));
+      setUploadedFiles((prev) => ({ ...prev, [uploadKey]: false }));
+      setUploadProgress(0);
 
-      await handleFileUpload(file, setData, setDuration)
+      await handleFileUpload(file, setData, setDuration, setUploadProgress);
 
-      setUploadingFiles((prev) => ({ ...prev, [uploadKey]: false }))
-      setUploadedFiles((prev) => ({ ...prev, [uploadKey]: true }))
-    }
+      setUploadingFiles((prev) => ({ ...prev, [uploadKey]: false }));
+      setUploadedFiles((prev) => ({ ...prev, [uploadKey]: true }));
+    };
 
-    input.click()
-  }
+    input.click();
+  };
+
+  return (
+    <div
+      className={`border-2 border-dashed rounded-lg p-4 sm:p-6 text-center transition-colors cursor-pointer group/upload ${colorClasses[color]}`}
+      onClick={handleClick}
+    >
+      <div className="relative pointer-events-none">
+        {isUploading ? (
+          <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-full bg-current/20 flex items-center justify-center">
+            <div className="w-6 h-6 sm:w-8 sm:h-8 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : (
+          <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-full bg-current/20 flex items-center justify-center group-hover/upload:scale-110 transition-transform">
+            <Upload className="w-6 h-6 sm:w-8 sm:h-8" />
+          </div>
+        )}
+
+        <p className="text-xs sm:text-sm font-medium">
+          {isUploading ? "Enviando..." : title}
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">{description}</p>
+
+        {isUploading && (
+          <div className="mt-2 w-full bg-gray-200 h-2 rounded">
+            <div
+              className="h-2 bg-purple-500 rounded"
+              style={{ width: `${uploadProgress}%` }}
+            ></div>
+          </div>
+        )}
+
+        {uploadedFile && (
+          <p className="text-xs text-green-500 mt-2 font-medium">
+            ✅ Arquivo enviado!
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};
 
   return (
     <div
