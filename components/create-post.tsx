@@ -224,21 +224,40 @@ export default function CreatePost({ location, onClose, className, onPostCreated
     let uploadedMediaUrl: string | null = null
 
     // Upload da mídia para o Supabase Storage
+    // Upload da mídia para o endpoint de compressão
     if (activeTab === "media" && selectedMedia) {
-      const fileExt = selectedMedia.name.split(".").pop()
-      const filePath = `${user?.id || "anonymous"}/${Date.now()}.${fileExt}`
+      const formData = new FormData()
+      formData.append("file", selectedMedia)
 
-      const { error: uploadError } = await supabase.storage
-        .from("befit")
-        .upload(filePath, selectedMedia, {
-          cacheControl: "3600",
-          upsert: false,
-        })
+      const xhr = new XMLHttpRequest()
 
-      if (uploadError) throw new Error("Erro ao subir mídia: " + uploadError.message)
+      // Cria uma promise para aguardar o término do upload
+      const uploadPromise = new Promise<void>((resolve, reject) => {
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            try {
+              const response = JSON.parse(xhr.responseText)
+              uploadedMediaUrl = response.url
+              resolve()
+            } catch (e) {
+              reject(new Error("Resposta inválida do servidor."))
+            }
+          } else {
+            reject(new Error("Erro no upload: " + xhr.responseText))
+          }
+        }
 
-      const { data: urlData } = supabase.storage.from("befit").getPublicUrl(filePath)
-      uploadedMediaUrl = urlData.publicUrl
+        xhr.onerror = () => {
+          reject(new Error("Erro de rede durante upload."))
+        }
+
+        xhr.send(formData)
+      })
+
+      xhr.open("POST", "/api/upload", true)
+      xhr.send(formData)
+
+      await uploadPromise
     }
 
     const { error: insertError } = await supabase.from("posts").insert({
