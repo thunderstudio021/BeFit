@@ -44,7 +44,7 @@ borderColor: "hsl(214.3 31.8% 91.4%)"}} className="mt-8 shadow-lg">
               </li>
             </ul>
             <div className="text-3xl font-bold text-gray-900">
-              R$ 49,90 <span className="text-base font-normal text-gray-500">/ mês</span>
+              R$ 49,99 <span className="text-base font-normal text-gray-500">/ mês</span>
             </div>
             <Button asChild className="w-full bg-purple-600 hover:bg-purple-700 text-white">
               <Link href="https://lastlink.com/p/C4D8D0865/checkout-payment">Assinar Agora</Link>
