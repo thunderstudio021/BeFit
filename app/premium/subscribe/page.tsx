@@ -13,7 +13,10 @@ export default function SubscribePage() {
           ilimitado a todas as funcionalidades!
         </p>
 
-        <Card className="mt-8 shadow-lg">
+        <Card style={{boxShadow: "var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)",
+color: "hsl(222.2 84% 4.9%)",
+backgroundColor: "hsl(0 0% 100%)",
+borderColor: "hsl(214.3 31.8% 91.4%)"}} className="mt-8 shadow-lg">
           <CardHeader>
             <CardTitle className="text-2xl font-bold text-purple-700">Plano Premium</CardTitle>
           </CardHeader>
