@@ -299,7 +299,7 @@ const handleFileUpload = (
         const videoEl = document.createElement("video");
         videoEl.preload = "metadata";
         videoEl.onloadedmetadata = () => {
-          setDuration?.(videoEl.duration);
+          setDuration?.(parseInt(""+videoEl?.duration));
           URL.revokeObjectURL(videoEl.src);
         };
         videoEl.onerror = () => {
@@ -359,8 +359,6 @@ const handleFileUpload = (
   color = "purple",
   multiple = false,
 }) => {
-  const [uploadingFiles, setUploadingFiles] = useState<Record<string, boolean>>({});
-  const [uploadedFiles, setUploadedFiles] = useState<Record<string, boolean>>({});
   const [uploadProgress, setUploadProgress] = useState<number>(0);
 
   const isUploading = uploadingFiles[uploadKey];
