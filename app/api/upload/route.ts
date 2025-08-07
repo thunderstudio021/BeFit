@@ -4,13 +4,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
 import ffmpeg from "fluent-ffmpeg";
-import ffmpegStatic from "ffmpeg-static";
 import { tmpdir } from "os";
 import { writeFile, unlink, readFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 
-ffmpeg.setFfmpegPath(ffmpegStatic!);
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
