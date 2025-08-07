@@ -49,16 +49,28 @@ export async function POST(req: Request) {
     }
 
     // Comprimir vídeo
+    let videoDuration = null;
+
     if (mimetype.startsWith("video/")) {
-      finalPath = tmpFinalPath + ".mp4";
-      await new Promise((resolve, reject) => {
-        ffmpeg(tmpOriginalPath)
-          .outputOptions(["-vcodec libx264", "-crf 28"])
-          .save(finalPath)
-          .on("end", resolve)
-          .on("error", reject);
-      });
+        // 📏 Extrai duração com ffprobe
+        videoDuration = await new Promise<number>((resolve, reject) => {
+            ffmpeg.ffprobe(tmpOriginalPath, (err, metadata) => {
+            if (err) return reject(err);
+            resolve(metadata.format.duration || 0);
+            });
+        });
+
+        // 🎬 Comprime o vídeo
+        finalPath = tmpFinalPath + ".mp4";
+        await new Promise((resolve, reject) => {
+            ffmpeg(tmpOriginalPath)
+            .outputOptions(["-vcodec libx264", "-crf 28"])
+            .save(finalPath)
+            .on("end", resolve)
+            .on("error", reject);
+        });
     }
+
 
     // Se não é imagem nem vídeo, mantemos o original
     const fileToUpload = await readFile(finalPath);
@@ -81,7 +93,8 @@ export async function POST(req: Request) {
     await unlink(tmpOriginalPath).catch(() => {});
     if (finalPath !== tmpOriginalPath) await unlink(finalPath).catch(() => {});
 
-    return NextResponse.json({ url: data.publicUrl });
+    return NextResponse.json({ url: data.publicUrl, duration: videoDuration });
+
   } catch (e) {
     console.error("Erro no upload:", e);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

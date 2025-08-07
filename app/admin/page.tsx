@@ -295,19 +295,6 @@ const handleFileUpload = (
 ): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
-      if (file.type.startsWith("video/")) {
-        const videoEl = document.createElement("video");
-        videoEl.preload = "metadata";
-        videoEl.onloadedmetadata = () => {
-          setDuration?.(parseInt(""+videoEl?.duration));
-          URL.revokeObjectURL(videoEl.src);
-        };
-        videoEl.onerror = () => {
-          console.warn("Erro ao carregar metadados do vídeo.");
-        };
-        videoEl.src = URL.createObjectURL(file);
-      }
-
       const formData = new FormData();
       formData.append("file", file);
 
@@ -322,15 +309,18 @@ const handleFileUpload = (
       };
 
       xhr.onload = () => {
-        if (xhr.status === 200) {
-          const response = JSON.parse(xhr.responseText);
-          setData(response.url);
-          resolve();
-        } else {
-          console.error("Erro no upload:", xhr.responseText);
-          reject(new Error(xhr.responseText));
+      if (xhr.status === 200) {
+        const response = JSON.parse(xhr.responseText);
+        setData(response.url);
+        if (response.duration) {
+          setDuration?.(Math.round(response.duration));
         }
-      };
+        resolve();
+      } else {
+        console.error("Erro no upload:", xhr.responseText);
+        reject(new Error(xhr.responseText));
+      }
+    };
 
       xhr.onerror = () => {
         console.error("Erro de rede durante upload.");
