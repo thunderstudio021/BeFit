@@ -287,58 +287,64 @@ const [adminSummary, setAdminSummary] = useState<AdminSummary>({
     getData();
   }, []);
 
-const handleFileUpload = async (
+const handleFileUpload = (
   file: File,
   setData: (url: string) => void,
   setDuration?: (duration: number) => void,
   setProgress?: (percent: number) => void
-) => {
-  try {
-    // Extrai duração se for vídeo
-    if (file.type.startsWith("video/")) {
-      const videoEl = document.createElement("video");
-      videoEl.preload = "metadata";
-      videoEl.onloadedmetadata = () => {
-        setDuration?.(videoEl.duration);
-        URL.revokeObjectURL(videoEl.src);
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    try {
+      if (file.type.startsWith("video/")) {
+        const videoEl = document.createElement("video");
+        videoEl.preload = "metadata";
+        videoEl.onloadedmetadata = () => {
+          setDuration?.(videoEl.duration);
+          URL.revokeObjectURL(videoEl.src);
+        };
+        videoEl.onerror = () => {
+          console.warn("Erro ao carregar metadados do vídeo.");
+        };
+        videoEl.src = URL.createObjectURL(file);
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/upload", true);
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && setProgress) {
+          const percent = Math.round((event.loaded * 100) / event.total);
+          setProgress(percent);
+        }
       };
-      videoEl.onerror = () => {
-        console.warn("Erro ao carregar metadados do vídeo.");
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          const response = JSON.parse(xhr.responseText);
+          setData(response.url);
+          resolve();
+        } else {
+          console.error("Erro no upload:", xhr.responseText);
+          reject(new Error(xhr.responseText));
+        }
       };
-      videoEl.src = URL.createObjectURL(file);
+
+      xhr.onerror = () => {
+        console.error("Erro de rede durante upload.");
+        reject(new Error("Erro de rede"));
+      };
+
+      xhr.send(formData);
+    } catch (err) {
+      console.error("Erro ao enviar arquivo:", err);
+      reject(err);
     }
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/upload", true);
-
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable && setProgress) {
-        const percent = Math.round((event.loaded * 100) / event.total);
-        setProgress(percent);
-      }
-    };
-
-    xhr.onload = () => {
-      if (xhr.status === 200) {
-        const response = JSON.parse(xhr.responseText);
-        setData(response.url);
-      } else {
-        console.error("Erro no upload:", xhr.responseText);
-      }
-    };
-
-    xhr.onerror = () => {
-      console.error("Erro de rede durante upload.");
-    };
-
-    xhr.send(formData);
-  } catch (err) {
-    console.error("Erro ao enviar arquivo:", err);
-  }
+  });
 };
+
 
 
 
@@ -352,7 +358,7 @@ const handleFileUpload = async (
   setDuration,
   color = "purple",
   multiple = false,
-}: FileUploadAreaProps) => {
+}) => {
   const [uploadingFiles, setUploadingFiles] = useState<Record<string, boolean>>({});
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, boolean>>({});
   const [uploadProgress, setUploadProgress] = useState<number>(0);
