@@ -358,7 +358,7 @@ const loadMorePosts = async (tab: "forYou" | "community") => {
       id: ad.id.toString(),
       type: 'ad',
       user: ad.name || 'Anunciante',
-      avatar: '/placeholder.svg',
+      avatar: ad.avatar,
       content: ad.caption || '',
       image: ad.image || '',
       likes: likes.length,
