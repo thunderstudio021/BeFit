@@ -49,7 +49,6 @@ borderColor: "hsl(214.3 31.8% 91.4%)"}} className="mt-8 shadow-lg">
             <Button asChild className="w-full bg-purple-600 hover:bg-purple-700 text-white">
               <Link href="https://lastlink.com/p/C4D8D0865/checkout-payment">Assinar Agora</Link>
             </Button>
-            <p className="text-xs text-gray-500 mt-2">*Este é um botão de checkout simulado para demonstração.</p>
           </CardContent>
         </Card>
       </div>

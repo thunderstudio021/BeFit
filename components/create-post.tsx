@@ -231,7 +231,6 @@ export default function CreatePost({ location, onClose, className, onPostCreated
 
       const xhr = new XMLHttpRequest()
 
-      // Cria uma promise para aguardar o término do upload
       const uploadPromise = new Promise<void>((resolve, reject) => {
         xhr.onload = () => {
           if (xhr.status === 200) {
@@ -250,8 +249,6 @@ export default function CreatePost({ location, onClose, className, onPostCreated
         xhr.onerror = () => {
           reject(new Error("Erro de rede durante upload."))
         }
-
-        xhr.send(formData)
       })
 
       xhr.open("POST", "/api/upload", true)
